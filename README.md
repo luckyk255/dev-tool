@@ -6,7 +6,7 @@
 
 可在浏览器直接打开：
 
-**[https://luckyk255.github.io/](https://luckyk255.github.io/)**
+**[https://luckyk255.github.io/dev-tool/](https://luckyk255.github.io/dev-tool/)**
 
 ## 功能概览
 
