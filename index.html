@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Universal Editor Pro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown-light.min.css" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true
+      },
+      svg: { fontCache: 'global' },
+      startup: {
+        pageReady: () => MathJax.startup.defaultPageReady()
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script defer src="./script.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header glass-card">
+      <div class="hero-copy">
+        <p class="eyebrow" data-i18n="eyebrow">Elegant / Modular / Live Preview</p>
+        <h1 class="app-title" data-i18n="title">全能编辑器 Pro</h1>
+        <p class="app-subtitle" data-i18n="subtitle">Markdown、LaTeX 与 JSON 格式化，一页完成。</p>
+      </div>
+
+      <div class="header-actions">
+        <button class="ghost-btn" id="themeToggle" type="button" data-i18n="themeLight">浅色</button>
+        <button class="ghost-btn" id="langToggle" type="button">EN</button>
+      </div>
+    </header>
+
+    <section class="control-bar glass-card">
+      <div class="mode-group" id="modeGroup">
+        <button class="mode-btn active" type="button" data-mode="markdown" data-i18n="modeMarkdown">Markdown + LaTeX</button>
+        <button class="mode-btn" type="button" data-mode="json" data-i18n="modeJson">JSON Formatter</button>
+      </div>
+
+      <div class="action-group">
+        <label class="upload-btn" for="fileInput" data-i18n="importBtn">导入文件</label>
+        <input id="fileInput" type="file" hidden />
+        <button class="ghost-btn" id="downloadBtn" type="button" data-i18n="downloadBtn">导出文件</button>
+        <button class="primary-btn" id="copyBtn" type="button" data-i18n="copyBtn">复制内容</button>
+      </div>
+    </section>
+
+    <main class="workspace" id="workspace">
+      <section class="panel editor-panel glass-card">
+        <div class="panel-header">
+          <div>
+            <span data-i18n="inputPanel">输入区</span>
+            <span class="panel-tip" id="saveStatus" data-i18n="autosaveReady">自动保存已开启</span>
+          </div>
+          <span class="panel-badge" id="modeHint" data-i18n="hintMarkdown">支持 Markdown 和 LaTeX 公式</span>
+        </div>
+        <div class="editor-body">
+          <div class="line-numbers" id="editorLineNumbers" aria-hidden="true"></div>
+          <textarea id="editor" spellcheck="false"></textarea>
+        </div>
+      </section>
+
+      <div class="splitter" id="splitter" role="separator" aria-orientation="vertical" aria-label="Resize panels"></div>
+
+      <section class="panel preview-panel glass-card">
+        <div class="panel-header">
+          <div>
+            <span data-i18n="previewPanel">预览区</span>
+            <span class="panel-tip" data-i18n="previewLive">实时渲染</span>
+          </div>
+          <span class="panel-badge" data-i18n="previewTip">优雅阅读视图</span>
+        </div>
+        <div class="preview-body">
+          <div id="preview" class="preview markdown-body"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</body>
+</html>
