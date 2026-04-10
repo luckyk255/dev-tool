@@ -1,8 +1,8 @@
-const STORAGE_KEY = 'universal-editor-pro';
+const STORAGE_KEY = 'editor-pro';
 
 const i18n = {
   zh: {
-    title: '全能编辑器 Pro',
+    title: 'Editor-Pro',
     eyebrow: 'Elegant / Modular / Live Preview',
     subtitle: 'Markdown、LaTeX 与 JSON 格式化，一页完成。',
     modeMarkdown: 'Markdown + LaTeX',
@@ -31,7 +31,7 @@ const i18n = {
     downloadNameJson: 'formatted.json'
   },
   en: {
-    title: 'Universal Editor Pro',
+    title: 'Editor-Pro',
     eyebrow: 'Elegant / Modular / Live Preview',
     subtitle: 'Markdown, LaTeX, and JSON formatting in one clean workspace.',
     modeMarkdown: 'Markdown + LaTeX',
@@ -62,7 +62,7 @@ const i18n = {
 };
 
 const sampleContent = {
-  markdown: `# Universal Editor Pro
+  markdown: `# Editor-Pro
 
 ## Why this version feels better
 - Cleaner visual hierarchy
@@ -78,12 +78,12 @@ $$
 \int_{-\infty}^{+\infty} e^{-x^2} dx = \sqrt{\pi}
 $$`,
   json: `{
-  "name": "Universal Editor Pro",
+  "name": "Editor-Pro",
   "version": 2,
   "features": ["live preview", "autosave", "theme switch", "i18n"],
   "active": true,
   "meta": {
-    "author": "OpenAI",
+    "author": "luckyk255",
     "score": 9.5,
     "notes": null
   }
@@ -205,7 +205,9 @@ function applyTheme() {
 
 function updateModeButtons() {
   document.querySelectorAll('[data-mode]').forEach((button) => {
-    button.classList.toggle('active', button.dataset.mode === state.mode);
+    const active = button.dataset.mode === state.mode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
   });
 }
 

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Universal Editor Pro</title>
+  <title>Editor-Pro</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;800&display=swap" rel="stylesheet" />
@@ -28,32 +28,27 @@
 </head>
 <body>
   <div class="app-shell">
-    <header class="app-header glass-card">
-      <div class="hero-copy">
-        <p class="eyebrow" data-i18n="eyebrow">Elegant / Modular / Live Preview</p>
-        <h1 class="app-title" data-i18n="title">全能编辑器 Pro</h1>
-        <p class="app-subtitle" data-i18n="subtitle">Markdown、LaTeX 与 JSON 格式化，一页完成。</p>
+    <div class="app-toolbar glass-card">
+      <div class="toolbar-top-row">
+        <div class="toolbar-brand">Editor-Pro</div>
+        <div class="header-actions">
+          <button class="ghost-btn ghost-btn--compact" id="themeToggle" type="button" data-i18n="themeLight">浅色</button>
+          <button class="ghost-btn ghost-btn--compact" id="langToggle" type="button">EN</button>
+        </div>
       </div>
-
-      <div class="header-actions">
-        <button class="ghost-btn" id="themeToggle" type="button" data-i18n="themeLight">浅色</button>
-        <button class="ghost-btn" id="langToggle" type="button">EN</button>
+      <div class="toolbar-actions-row">
+        <div class="mode-group" id="modeGroup" role="tablist" aria-label="Editor mode">
+          <button class="mode-btn active" type="button" data-mode="markdown" data-i18n="modeMarkdown" role="tab" aria-selected="true">Markdown + LaTeX</button>
+          <button class="mode-btn" type="button" data-mode="json" data-i18n="modeJson" role="tab" aria-selected="false">JSON Formatter</button>
+        </div>
+        <div class="action-group">
+          <label class="upload-btn upload-btn--compact" for="fileInput" data-i18n="importBtn">导入文件</label>
+          <input id="fileInput" type="file" hidden />
+          <button class="ghost-btn ghost-btn--compact" id="downloadBtn" type="button" data-i18n="downloadBtn">导出文件</button>
+          <button class="primary-btn primary-btn--compact" id="copyBtn" type="button" data-i18n="copyBtn">复制内容</button>
+        </div>
       </div>
-    </header>
-
-    <section class="control-bar glass-card">
-      <div class="mode-group" id="modeGroup">
-        <button class="mode-btn active" type="button" data-mode="markdown" data-i18n="modeMarkdown">Markdown + LaTeX</button>
-        <button class="mode-btn" type="button" data-mode="json" data-i18n="modeJson">JSON Formatter</button>
-      </div>
-
-      <div class="action-group">
-        <label class="upload-btn" for="fileInput" data-i18n="importBtn">导入文件</label>
-        <input id="fileInput" type="file" hidden />
-        <button class="ghost-btn" id="downloadBtn" type="button" data-i18n="downloadBtn">导出文件</button>
-        <button class="primary-btn" id="copyBtn" type="button" data-i18n="copyBtn">复制内容</button>
-      </div>
-    </section>
+    </div>
 
     <main class="workspace" id="workspace">
       <section class="panel editor-panel glass-card">

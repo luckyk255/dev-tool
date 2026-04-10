@@ -1,4 +1,4 @@
-# 全能编辑器 Pro（Universal Editor Pro）
+# Editor-Pro
 
 在浏览器里完成 **Markdown + LaTeX 实时预览** 与 **JSON 校验与格式化** 的单页工具，无需构建与安装依赖。
 
