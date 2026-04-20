@@ -23,6 +23,8 @@ const i18n = {
     toastImported: '文件已导入',
     toastExported: '文件已导出',
     invalidJson: 'JSON 解析错误',
+    jsonFoldExpand: '展开',
+    jsonFoldCollapse: '收起',
     autosaveReady: '自动保存已开启',
     autosaveSaved: '已自动保存',
     themeLight: '浅色',
@@ -52,6 +54,8 @@ const i18n = {
     toastImported: 'File imported',
     toastExported: 'File exported',
     invalidJson: 'JSON parse error',
+    jsonFoldExpand: 'Expand',
+    jsonFoldCollapse: 'Collapse',
     autosaveReady: 'Auto-save is enabled',
     autosaveSaved: 'Saved automatically',
     themeLight: 'Light',
@@ -263,19 +267,22 @@ function renderJson(content) {
   els.preview.className = 'preview';
   try {
     const parsed = JSON.parse(content || '{}');
-    const formatted = JSON.stringify(parsed, null, 2);
     els.preview.innerHTML = `
-      <div class="json-preview">
-        <div class="json-line-numbers" id="jsonLineNumbers">${generateJsonLines(formatted)}</div>
-        <div class="json-content" id="jsonContent">${highlightJson(formatted)}</div>
+      <div class="json-preview json-tree-preview">
+        <div class="json-line-numbers" id="jsonLineNumbers"></div>
+        <div class="json-content json-tree-content" id="jsonContent"></div>
       </div>
     `;
 
     const jsonContent = document.getElementById('jsonContent');
     const jsonLineNumbers = document.getElementById('jsonLineNumbers');
+    const collapsedPaths = collectCollapsedPaths(els.preview);
+    jsonContent.innerHTML = renderJsonTree(parsed, 0, '', true, '$', collapsedPaths);
+    updateJsonLineNumbers();
     jsonContent.addEventListener('scroll', () => {
       jsonLineNumbers.scrollTop = jsonContent.scrollTop;
     });
+    jsonContent.addEventListener('click', onJsonTreeClick);
   } catch (error) {
     const safeContent = escapeHtml(content);
     els.preview.innerHTML = `
@@ -287,6 +294,81 @@ function renderJson(content) {
   }
 }
 
+function collectCollapsedPaths(container) {
+  return new Set(
+    Array.from(container.querySelectorAll('.json-node[data-collapsed="true"][data-json-path]'), (node) => node.dataset.jsonPath)
+  );
+}
+
+function onJsonTreeClick(event) {
+  const explicitToggle = event.target.closest('[data-json-toggle]');
+  const clickedRow = event.target.closest('.json-row');
+  const node = (explicitToggle || clickedRow)?.closest('.json-node');
+  if (!node) return;
+
+  // Allow clicking the opening row (not the closing row) to toggle collapse,
+  // similar to common JSON viewers.
+  if (!explicitToggle) {
+    if (!clickedRow) return;
+    if (clickedRow.classList.contains('json-closing-row')) return;
+    if (clickedRow.parentElement !== node) return;
+  }
+
+  const collapsed = node.dataset.collapsed === 'true';
+  node.dataset.collapsed = collapsed ? 'false' : 'true';
+  const toggle = node.querySelector('[data-json-toggle]');
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
+    toggle.setAttribute('aria-label', collapsed ? t('jsonFoldCollapse') : t('jsonFoldExpand'));
+  }
+  const jsonContent = document.getElementById('jsonContent');
+  const jsonLineNumbers = document.getElementById('jsonLineNumbers');
+  if (jsonContent && jsonLineNumbers) {
+    updateJsonLineNumbers();
+    jsonLineNumbers.scrollTop = jsonContent.scrollTop;
+  }
+}
+
+function renderJsonTree(value, depth = 0, key = '', isLast = true, path = '$', collapsedPaths = new Set()) {
+  if (Array.isArray(value)) {
+    return renderJsonCollection(value, depth, key, isLast, '[', ']', false, path, collapsedPaths);
+  }
+
+  if (value && typeof value === 'object') {
+    return renderJsonCollection(Object.entries(value), depth, key, isLast, '{', '}', true, path, collapsedPaths);
+  }
+
+  return renderJsonPrimitiveRow(value, depth, key, isLast);
+}
+
+function renderJsonCollection(value, depth, key, isLast, open, close, isObject, path, collapsedPaths) {
+  const items = isObject ? value : value.map((item, index) => [String(index), item]);
+  const count = items.length;
+  const summary = `${open === '{' ? count + ' keys' : count + ' items'}`;
+  const collapsed = collapsedPaths.has(path);
+  const children = count === 0
+    ? ''
+    : items.map(([childKey, childValue], index) => {
+      const childPath = isObject ? `${path}.${childKey}` : `${path}[${index}]`;
+      return renderJsonTree(childValue, depth + 1, isObject ? childKey : '', index === count - 1, childPath, collapsedPaths);
+    }).join('');
+
+  return `
+    <div class="json-node" data-json-path="${escapeHtml(path)}" data-collapsed="${collapsed ? 'true' : 'false'}">
+      <div class="json-row" style="--json-depth:${depth}">
+        <button type="button" class="json-toggle" data-json-toggle aria-expanded="${collapsed ? 'false' : 'true'}" aria-label="${collapsed ? t('jsonFoldExpand') : t('jsonFoldCollapse')}"></button>
+        ${renderJsonKey(key)}<span class="json-bracket">${open}</span>
+        <span class="json-summary">${escapeHtml(summary)}</span>
+        <span class="json-collapsed-inline"><span class="json-ellipsis">…</span><span class="json-bracket">${close}</span>${isLast ? '' : '<span class="json-comma">,</span>'}</span>
+      </div>
+      <div class="json-children">${children}</div>
+      <div class="json-row json-closing-row" style="--json-depth:${depth}">
+        <span class="json-toggle-spacer"></span><span class="json-bracket">${close}</span>${isLast ? '' : '<span class="json-comma">,</span>'}
+      </div>
+    </div>
+  `;
+}
+
 function generateJsonLines(text) {
   const lineCount = Math.max(1, text.split('\n').length);
   return Array.from({ length: lineCount }, (_, index) => (
@@ -294,13 +376,51 @@ function generateJsonLines(text) {
   )).join('');
 }
 
-function highlightJson(jsonText) {
-  return escapeHtml(jsonText)
-    .replace(/"([^"\\]*(?:\\.[^"\\]*)*)"(?=\s*:)/g, '<span class="json-key">"$1"</span>')
-    .replace(/:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g, ': <span class="json-string">"$1"</span>')
-    .replace(/:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, ': <span class="json-number">$1</span>')
-    .replace(/:\s*(true|false)/g, ': <span class="json-boolean">$1</span>')
-    .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+function updateJsonLineNumbers() {
+  const jsonContent = document.getElementById('jsonContent');
+  const jsonLineNumbers = document.getElementById('jsonLineNumbers');
+  if (!jsonContent || !jsonLineNumbers) return;
+
+  const rows = Array.from(jsonContent.querySelectorAll('.json-row'))
+    .filter((row) => row.offsetParent !== null);
+  const lineCount = Math.max(1, rows.length);
+  jsonLineNumbers.innerHTML = Array.from({ length: lineCount }, (_, index) => (
+    `<div class="json-line-item">${index + 1}</div>`
+  )).join('');
+}
+
+function renderJsonPrimitiveRow(value, depth, key, isLast) {
+  return `
+    <div class="json-row" style="--json-depth:${depth}">
+      <span class="json-toggle-spacer"></span>
+      ${renderJsonKey(key)}${highlightJsonValue(value)}${isLast ? '' : '<span class="json-comma">,</span>'}
+    </div>
+  `;
+}
+
+function renderJsonKey(key) {
+  if (!key) return '';
+  return `<span class="json-key">"${escapeHtml(key)}"</span><span class="json-colon">: </span>`;
+}
+
+function highlightJsonValue(value) {
+  if (typeof value === 'string') {
+    return `<span class="json-string">"${escapeHtml(value)}"</span>`;
+  }
+
+  if (typeof value === 'number') {
+    return `<span class="json-number">${String(value)}</span>`;
+  }
+
+  if (typeof value === 'boolean') {
+    return `<span class="json-boolean">${String(value)}</span>`;
+  }
+
+  if (value === null) {
+    return '<span class="json-null">null</span>';
+  }
+
+  return `<span>${escapeHtml(JSON.stringify(value))}</span>`;
 }
 
 async function copyContent() {
