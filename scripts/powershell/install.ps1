@@ -19,10 +19,16 @@ if (-not (Test-Path $installDir)) {
     New-Item -ItemType Directory -Path $installDir -Force | Out-Null
 }
 
-# Download or use local file
-if (Test-Path (Join-Path $PSScriptRoot "linux-cmd.ps1")) {
+# Download or use local file (PSScriptRoot is empty when run via irm | iex)
+$localScript = if ([string]::IsNullOrWhiteSpace($PSScriptRoot)) {
+    $null
+} else {
+    Join-Path $PSScriptRoot "linux-cmd.ps1"
+}
+
+if ($localScript -and (Test-Path -LiteralPath $localScript)) {
     Write-Host "Found local linux-cmd.ps1, copying..." -ForegroundColor Yellow
-    Copy-Item (Join-Path $PSScriptRoot "linux-cmd.ps1") $scriptPath -Force
+    Copy-Item -LiteralPath $localScript -Destination $scriptPath -Force
 } else {
     Write-Host "Downloading linux-cmd.ps1 from GitHub..." -ForegroundColor Yellow
     try {
@@ -36,6 +42,13 @@ if (Test-Path (Join-Path $PSScriptRoot "linux-cmd.ps1")) {
 
 # Get PowerShell profile path
 $profilePath = $PROFILE.CurrentUserAllHosts
+if ([string]::IsNullOrWhiteSpace($profilePath)) {
+    $profilePath = $PROFILE.CurrentUserCurrentHost
+}
+if ([string]::IsNullOrWhiteSpace($profilePath)) {
+    Write-Error "Could not resolve PowerShell profile path (`$PROFILE)."
+    exit 1
+}
 
 Write-Host "Profile path: $profilePath" -ForegroundColor Yellow
 
