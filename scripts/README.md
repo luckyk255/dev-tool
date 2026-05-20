@@ -1,25 +1,31 @@
-# Windows 实用脚本合集
+# 开发与系统脚本
 
-一系列提升 Windows 开发体验的实用脚本。
+按平台分类的实用脚本，与仓库根目录的在线编辑器同属 `dev-tool` 项目。
+
+| 目录 | 内容 |
+|------|------|
+| `powershell/` | PowerShell Linux 命令兼容层及安装脚本 |
+| `autohotkey/` | Windows 全局 Emacs 风格键位 |
+| `karabiner/` | macOS Karabiner-Elements 配置 |
 
 ---
 
 ## 📦 脚本列表
 
-### 1️⃣ Linux Commands for PowerShell (`linux-cmd.ps1`)
+### 1️⃣ Linux Commands for PowerShell (`powershell/linux-cmd.ps1`)
 在 Windows PowerShell 中使用熟悉的 Linux 命令。
 
 #### 🚀 一键安装（推荐）
 
 **方法一：直接安装**
 ```powershell
-irm https://raw.githubusercontent.com/luckyk255/coding/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/luckyk255/dev-tool/main/scripts/powershell/install.ps1 | iex
 ```
 
 **方法二：下载后安装**
 ```powershell
 # 下载安装脚本
-Invoke-WebRequest -Uri "https://raw.githubusercontent.com/luckyk255/coding/main/install.ps1" -OutFile "install.ps1"
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/luckyk255/dev-tool/main/scripts/powershell/install.ps1" -OutFile "install.ps1"
 
 # 运行安装
 .\install.ps1
@@ -39,7 +45,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/luckyk255/coding/main/
 
 ---
 
-### 2️⃣ Emacs 风格键位映射 (`gljm.ahk`)
+### 2️⃣ Emacs 风格键位映射 (`autohotkey/gljm.ahk`)
 为 Windows 全局添加 Emacs/类 Unix 的键盘快捷键，提升文本编辑效率。
 
 #### 🚀 快速使用
@@ -174,5 +180,5 @@ MIT License - 随意使用和修改！
 
 - 一键安装 Linux Commands：
   ```powershell
-  irm https://raw.githubusercontent.com/luckyk255/coding/main/install.ps1 | iex
+  irm https://raw.githubusercontent.com/luckyk255/dev-tool/main/scripts/powershell/install.ps1 | iex
   ```

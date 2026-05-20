@@ -43,11 +43,23 @@ npx --yes serve -l 8080
 
 ## 项目结构
 
-| 文件 | 说明 |
+```
+dev-tool/
+├── index.html          # 编辑器页面（GitHub Pages 入口）
+├── styles.css
+├── script.js
+└── scripts/            # 开发与系统增强脚本
+    ├── powershell/     # Linux 风格命令 + 一键安装
+    ├── autohotkey/     # Emacs 风格全局键位
+    └── karabiner/      # macOS Karabiner 配置
+```
+
+| 路径 | 说明 |
 |------|------|
 | `index.html` | 页面结构、CDN 引入（字体、marked、MathJax、markdown 样式） |
 | `styles.css` | 布局、主题变量与组件样式 |
 | `script.js` | 模式切换、预览渲染、持久化与交互逻辑 |
+| [`scripts/`](scripts/) | Windows / macOS 实用脚本，详见 [scripts/README.md](scripts/README.md) |
 
 ## 技术栈
 

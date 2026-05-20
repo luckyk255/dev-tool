@@ -7,7 +7,7 @@ Write-Host "`n==== Linux Commands Installer ====" -ForegroundColor Cyan
 Write-Host ""
 
 # GitHub raw file URL
-$githubUrl = "https://raw.githubusercontent.com/luckyk255/coding/main/linux-cmd.ps1"
+$githubUrl = "https://raw.githubusercontent.com/luckyk255/dev-tool/main/scripts/powershell/linux-cmd.ps1"
 
 # Local installation path
 $installDir = Join-Path $env:USERPROFILE ".powershell-linux-cmd"
