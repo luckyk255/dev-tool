@@ -101,6 +101,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/luckyk255/dev-tool/mai
 - `<command> --help` - Same as above (e.g. `port --help`)
 
 #### Other
+- `open [path]` - Open folder or select file in File Explorer (`open .` for current dir)
 - `which <command>` - Find command location
 - `clear` - Clear screen
 

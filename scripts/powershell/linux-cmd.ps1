@@ -44,6 +44,12 @@ set <NAME>=<value>
 "@
     export   = "export <NAME>=<value>`n  Same as set (Linux-style name)."
     wget     = "wget <url> [-O <file>]`n  Download a file."
+    open     = @"
+open [path]
+  Open path in File Explorer (. = current folder).
+  Files are shown selected; folders open directly.
+  Examples: open .   |   open C:\Users   |   open .\README.md
+"@
 }
 
 $script:LinuxCmdAliases = @{
@@ -555,6 +561,30 @@ function wget {
         Write-Error "Download failed"
     }
 }
+
+function open {
+    param(
+        [string]$Path = ".",
+        [Alias('h')][switch]$Help
+    )
+    if (Test-LinuxCmdHelp open -Help:$Help -Argument $Path) { return }
+    if ($Path -in '--help', '-h') { Show-LinuxCmdHelp open; return }
+
+    $target = if ($Path -eq ".") { (Get-Location).Path } else { $Path }
+    if (-not (Test-Path -LiteralPath $target)) {
+        Write-Error "Path not found: $Path"
+        return
+    }
+
+    $resolved = (Resolve-Path -LiteralPath $target).Path
+    if (Test-Path -LiteralPath $resolved -PathType Leaf) {
+        Start-Process explorer.exe -ArgumentList "/select,`"$resolved`""
+    } else {
+        Start-Process explorer.exe -ArgumentList "`"$resolved`""
+    }
+}
+
+# -------------------- Startup --------------------
 
 Write-Host ""
 Write-Host "Linux commands loaded!  (help | <cmd> --help)" -ForegroundColor Green
