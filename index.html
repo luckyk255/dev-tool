@@ -74,10 +74,17 @@
             <span data-i18n="previewPanel">预览区</span>
             <span class="panel-tip" data-i18n="previewLive">实时渲染</span>
           </div>
-          <span class="panel-badge" data-i18n="previewTip">优雅阅读视图</span>
+          <span class="panel-badge" data-i18n="previewTipRead">优雅阅读视图</span>
         </div>
-        <div class="preview-body">
+        <div class="preview-body" id="previewBody" data-layout="markdown">
           <div id="preview" class="preview markdown-body"></div>
+          <div class="preview-edit-wrap" id="previewEditWrap">
+            <div class="line-numbers" id="previewLineNumbers" aria-hidden="true"></div>
+            <div class="preview-code-pane" id="previewCodePane">
+              <pre id="previewHighlight" class="preview-highlight" aria-hidden="true"></pre>
+              <textarea id="previewEditor" spellcheck="false" aria-label="Preview editor"></textarea>
+            </div>
+          </div>
         </div>
       </section>
     </main>
