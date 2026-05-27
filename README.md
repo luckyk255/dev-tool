@@ -11,7 +11,7 @@
 ## 功能概览
 
 - **Markdown + LaTeX**：基于 [marked](https://github.com/markedjs/marked) 渲染 Markdown，[MathJax 3](https://www.mathjax.org/) 渲染 `$...$`、`$$...$$` 等公式；预览样式使用 [github-markdown-css](https://github.com/sindresorhus/github-markdown-css)。
-- **JSON 模式**：解析校验、缩进格式化，预览区带简易语法高亮；解析失败时显示错误信息。
+- **JSON 模式**：解析校验、一键格式化输入；预览区可在**树形折叠**与**格式化高亮**两种视图间切换；解析失败时显示错误信息。
 - **编辑体验**：行号、左右分栏实时预览；宽屏下可拖拽中间分隔条调整比例（约 25%～75%）。
 - **导入 / 导出 / 复制**：本地选文件导入；导出为 `.md` 或格式化后的 `.json`；一键复制编辑器内容。
 - **自动保存**：内容、模式、语言、主题与分栏比例写入 `localStorage`（键名：`universal-editor-pro`）。
