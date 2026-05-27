@@ -14,7 +14,10 @@ const i18n = {
     inputPanel: '输入区',
     previewPanel: '预览区',
     hintMarkdown: '支持 Markdown 和 LaTeX 公式',
-    hintJson: '自动校验并格式化 JSON',
+    hintJson: '可折叠的 JSON 树；键和值可直接点击编辑',
+    formatBtn: '格式化',
+    toastJsonFormatted: 'JSON 已格式化',
+    toastJsonInvalid: 'JSON 无效，无法格式化',
     hintSql: '自动格式化 SQL 语句',
     previewLive: '实时渲染',
     previewTip: '优雅阅读视图',
@@ -49,7 +52,10 @@ const i18n = {
     inputPanel: 'Input',
     previewPanel: 'Preview',
     hintMarkdown: 'Supports Markdown and LaTeX formulas',
-    hintJson: 'Validate and format JSON automatically',
+    hintJson: 'Foldable JSON tree; click keys or values to edit inline',
+    formatBtn: 'Format',
+    toastJsonFormatted: 'JSON formatted',
+    toastJsonInvalid: 'Invalid JSON, cannot format',
     hintSql: 'Format SQL statements automatically',
     previewLive: 'Live preview',
     previewTip: 'Elegant reading view',
@@ -124,6 +130,7 @@ window.addEventListener('DOMContentLoaded', () => {
   applyTheme();
   applyLanguage();
   loadCurrentModeContent();
+  updateJsonControls();
   renderLineNumbers();
   renderPreview();
   applySplitRatio();
@@ -144,12 +151,14 @@ function cacheElements() {
   els.saveStatus = document.getElementById('saveStatus');
   els.workspace = document.getElementById('workspace');
   els.splitter = document.getElementById('splitter');
+  els.formatBtn = document.getElementById('formatBtn');
 }
 
 function bindEvents() {
   els.editor.addEventListener('input', onEditorInput);
   els.editor.addEventListener('scroll', syncEditorLineNumbers);
   els.copyBtn.addEventListener('click', copyContent);
+  els.formatBtn.addEventListener('click', formatJsonEditor);
   els.downloadBtn.addEventListener('click', exportContent);
   els.fileInput.addEventListener('change', importFile);
   els.langToggle.addEventListener('click', toggleLanguage);
@@ -179,6 +188,7 @@ function switchMode(mode) {
   updateHints();
   renderLineNumbers();
   renderPreview();
+  updateJsonControls();
   persistState();
 }
 
@@ -208,6 +218,7 @@ function applyLanguage() {
   els.saveStatus.textContent = t('autosaveReady');
   updateModeButtons();
   updatePlaceholders();
+  updateJsonControls();
 }
 
 function applyTheme() {
@@ -233,6 +244,25 @@ function updatePlaceholders() {
 function updateHints() {
   const map = { markdown: 'hintMarkdown', json: 'hintJson', sql: 'hintSql' };
   els.modeHint.textContent = t(map[state.mode] ?? 'hintMarkdown');
+}
+
+function updateJsonControls() {
+  els.formatBtn.hidden = state.mode !== 'json';
+}
+
+function formatJsonEditor() {
+  if (state.mode !== 'json') return;
+  try {
+    const formatted = JSON.stringify(JSON.parse(els.editor.value || '{}'), null, 2);
+    els.editor.value = formatted;
+    state.content.json = formatted;
+    renderLineNumbers();
+    renderPreview();
+    persistState('autosaveSaved');
+    showToast(t('toastJsonFormatted'));
+  } catch (_) {
+    showToast(t('toastJsonInvalid'));
+  }
 }
 
 function loadCurrentModeContent() {
@@ -281,33 +311,31 @@ function renderMarkdown(content) {
 
 function renderJson(content) {
   els.preview.className = 'preview';
+  const raw = content ?? '';
+  let parsed;
   try {
-    const parsed = JSON.parse(content || '{}');
-    els.preview.innerHTML = `
-      <div class="json-preview json-tree-preview">
-        <div class="json-line-numbers" id="jsonLineNumbers"></div>
-        <div class="json-content json-tree-content" id="jsonContent"></div>
-      </div>
-    `;
-
-    const jsonContent = document.getElementById('jsonContent');
-    const jsonLineNumbers = document.getElementById('jsonLineNumbers');
-    const collapsedPaths = collectCollapsedPaths(els.preview);
-    jsonContent.innerHTML = renderJsonTree(parsed, 0, '', true, '$', collapsedPaths);
-    updateJsonLineNumbers();
-    jsonContent.addEventListener('scroll', () => {
-      jsonLineNumbers.scrollTop = jsonContent.scrollTop;
-    });
-    jsonContent.addEventListener('click', onJsonTreeClick);
+    parsed = JSON.parse(raw || '{}');
   } catch (error) {
-    const safeContent = escapeHtml(content);
     els.preview.innerHTML = `
       <div class="json-preview">
-        <div class="json-line-numbers"></div>
-        <div class="json-content"><span class="json-error">${t('invalidJson')}: ${escapeHtml(error.message)}</span>\n${safeContent}</div>
+        <div class="json-content"><span class="json-error">${t('invalidJson')}: ${escapeHtml(error.message)}</span>\n${escapeHtml(raw)}</div>
       </div>
     `;
+    return;
   }
+
+  els.preview.innerHTML = `
+    <div class="json-preview json-tree-preview">
+      <div class="json-content json-tree-content" id="jsonContent"></div>
+    </div>
+  `;
+
+  const jsonContent = document.getElementById('jsonContent');
+  const collapsedPaths = collectCollapsedPaths(els.preview);
+  jsonContent.innerHTML = renderJsonTree(parsed, 0, '', true, '$', collapsedPaths);
+  jsonContent.addEventListener('click', onJsonTreeClick);
+  jsonContent.addEventListener('input', onJsonTreeInlineEdit);
+  jsonContent.addEventListener('keydown', onJsonTreeEditKeydown);
 }
 
 function collectCollapsedPaths(container) {
@@ -323,12 +351,14 @@ function onJsonTreeClick(event) {
   if (!node) return;
 
   // Allow clicking the opening row (not the closing row) to toggle collapse,
-  // similar to common JSON viewers.
+  // similar to common JSON viewers. Skip when clicking inline-editable spans.
   if (!explicitToggle) {
     if (!clickedRow) return;
     if (clickedRow.classList.contains('json-closing-row')) return;
     if (clickedRow.parentElement !== node) return;
+    if (event.target.closest('[contenteditable]')) return;
   }
+  if (node.dataset.jsonType !== 'object' && node.dataset.jsonType !== 'array') return;
 
   const collapsed = node.dataset.collapsed === 'true';
   node.dataset.collapsed = collapsed ? 'false' : 'true';
@@ -336,12 +366,6 @@ function onJsonTreeClick(event) {
   if (toggle) {
     toggle.setAttribute('aria-expanded', collapsed ? 'true' : 'false');
     toggle.setAttribute('aria-label', collapsed ? t('jsonFoldCollapse') : t('jsonFoldExpand'));
-  }
-  const jsonContent = document.getElementById('jsonContent');
-  const jsonLineNumbers = document.getElementById('jsonLineNumbers');
-  if (jsonContent && jsonLineNumbers) {
-    updateJsonLineNumbers();
-    jsonLineNumbers.scrollTop = jsonContent.scrollTop;
   }
 }
 
@@ -354,26 +378,40 @@ function renderJsonTree(value, depth = 0, key = '', isLast = true, path = '$', c
     return renderJsonCollection(Object.entries(value), depth, key, isLast, '{', '}', true, path, collapsedPaths);
   }
 
-  return renderJsonPrimitiveRow(value, depth, key, isLast);
+  return renderJsonPrimitiveNode(value, depth, key, isLast, path);
 }
 
 function renderJsonCollection(value, depth, key, isLast, open, close, isObject, path, collapsedPaths) {
   const items = isObject ? value : value.map((item, index) => [String(index), item]);
   const count = items.length;
+  const type = isObject ? 'object' : 'array';
+
+  // Empty collections render on a single row (e.g. "a": {}) to match the line
+  // count of JSON.stringify with 2-space indent.
+  if (count === 0) {
+    return `
+      <div class="json-node json-empty-collection" data-json-path="${escapeHtml(path)}" data-json-type="${type}" ${keyAttr(key)}>
+        <div class="json-row" style="--json-depth:${depth}">
+          <span class="json-toggle-spacer"></span>
+          ${renderEditableKey(key)}<span class="json-bracket">${open}</span><span class="json-bracket">${close}</span>${isLast ? '' : '<span class="json-comma">,</span>'}
+        </div>
+        <div class="json-children"></div>
+      </div>
+    `;
+  }
+
   const summary = `${open === '{' ? count + ' keys' : count + ' items'}`;
   const collapsed = collapsedPaths.has(path);
-  const children = count === 0
-    ? ''
-    : items.map(([childKey, childValue], index) => {
-      const childPath = isObject ? `${path}.${childKey}` : `${path}[${index}]`;
-      return renderJsonTree(childValue, depth + 1, isObject ? childKey : '', index === count - 1, childPath, collapsedPaths);
-    }).join('');
+  const children = items.map(([childKey, childValue], index) => {
+    const childPath = isObject ? `${path}.${childKey}` : `${path}[${index}]`;
+    return renderJsonTree(childValue, depth + 1, isObject ? childKey : '', index === count - 1, childPath, collapsedPaths);
+  }).join('');
 
   return `
-    <div class="json-node" data-json-path="${escapeHtml(path)}" data-collapsed="${collapsed ? 'true' : 'false'}">
+    <div class="json-node" data-json-path="${escapeHtml(path)}" data-json-type="${type}" ${keyAttr(key)} data-collapsed="${collapsed ? 'true' : 'false'}">
       <div class="json-row" style="--json-depth:${depth}">
         <button type="button" class="json-toggle" data-json-toggle aria-expanded="${collapsed ? 'false' : 'true'}" aria-label="${collapsed ? t('jsonFoldExpand') : t('jsonFoldCollapse')}"></button>
-        ${renderJsonKey(key)}<span class="json-bracket">${open}</span>
+        ${renderEditableKey(key)}<span class="json-bracket">${open}</span>
         <span class="json-summary">${escapeHtml(summary)}</span>
         <span class="json-collapsed-inline"><span class="json-ellipsis">…</span><span class="json-bracket">${close}</span>${isLast ? '' : '<span class="json-comma">,</span>'}</span>
       </div>
@@ -385,58 +423,118 @@ function renderJsonCollection(value, depth, key, isLast, open, close, isObject, 
   `;
 }
 
-function generateJsonLines(text) {
-  const lineCount = Math.max(1, text.split('\n').length);
-  return Array.from({ length: lineCount }, (_, index) => (
-    `<div class="json-line-item">${index + 1}</div>`
-  )).join('');
-}
-
-function updateJsonLineNumbers() {
-  const jsonContent = document.getElementById('jsonContent');
-  const jsonLineNumbers = document.getElementById('jsonLineNumbers');
-  if (!jsonContent || !jsonLineNumbers) return;
-
-  const rows = Array.from(jsonContent.querySelectorAll('.json-row'))
-    .filter((row) => row.offsetParent !== null);
-  const lineCount = Math.max(1, rows.length);
-  jsonLineNumbers.innerHTML = Array.from({ length: lineCount }, (_, index) => (
-    `<div class="json-line-item">${index + 1}</div>`
-  )).join('');
-}
-
-function renderJsonPrimitiveRow(value, depth, key, isLast) {
+function renderJsonPrimitiveNode(value, depth, key, isLast, path) {
+  const type = primitiveType(value);
   return `
-    <div class="json-row" style="--json-depth:${depth}">
-      <span class="json-toggle-spacer"></span>
-      ${renderJsonKey(key)}${highlightJsonValue(value)}${isLast ? '' : '<span class="json-comma">,</span>'}
+    <div class="json-node json-leaf" data-json-path="${escapeHtml(path)}" data-json-type="${type}" ${keyAttr(key)}>
+      <div class="json-row" style="--json-depth:${depth}">
+        <span class="json-toggle-spacer"></span>
+        ${renderEditableKey(key)}${renderEditableValue(value, type)}${isLast ? '' : '<span class="json-comma">,</span>'}
+      </div>
     </div>
   `;
 }
 
-function renderJsonKey(key) {
-  if (!key) return '';
-  return `<span class="json-key">"${escapeHtml(key)}"</span><span class="json-colon">: </span>`;
+function primitiveType(value) {
+  if (value === null) return 'null';
+  if (typeof value === 'string') return 'string';
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'boolean') return 'boolean';
+  return 'string';
 }
 
-function highlightJsonValue(value) {
-  if (typeof value === 'string') {
-    return `<span class="json-string">"${escapeHtml(value)}"</span>`;
-  }
+function keyAttr(key) {
+  if (key === '' || key === null || key === undefined) return '';
+  return `data-json-key="${escapeHtml(String(key))}"`;
+}
 
-  if (typeof value === 'number') {
-    return `<span class="json-number">${String(value)}</span>`;
-  }
+function renderEditableKey(key) {
+  if (key === '' || key === null || key === undefined) return '';
+  return `<span class="json-quote">"</span><span class="json-key-text" contenteditable="plaintext-only" spellcheck="false">${escapeHtml(String(key))}</span><span class="json-quote">"</span><span class="json-colon">: </span>`;
+}
 
-  if (typeof value === 'boolean') {
-    return `<span class="json-boolean">${String(value)}</span>`;
+function renderEditableValue(value, type) {
+  if (type === 'string') {
+    return `<span class="json-quote">"</span><span class="json-value-text json-string" contenteditable="plaintext-only" spellcheck="false">${escapeHtml(value)}</span><span class="json-quote">"</span>`;
   }
-
-  if (value === null) {
-    return '<span class="json-null">null</span>';
+  if (type === 'number') {
+    return `<span class="json-value-text json-number" contenteditable="plaintext-only" spellcheck="false">${escapeHtml(String(value))}</span>`;
   }
+  if (type === 'boolean') {
+    return `<span class="json-value-text json-boolean" contenteditable="plaintext-only" spellcheck="false">${String(value)}</span>`;
+  }
+  if (type === 'null') {
+    return `<span class="json-value-text json-null" contenteditable="plaintext-only" spellcheck="false">null</span>`;
+  }
+  return `<span class="json-value-text">${escapeHtml(JSON.stringify(value))}</span>`;
+}
 
-  return `<span>${escapeHtml(JSON.stringify(value))}</span>`;
+function readJsonFromTree(node) {
+  const type = node.dataset.jsonType;
+  if (type === 'object') {
+    const out = {};
+    const childrenEl = node.querySelector(':scope > .json-children');
+    if (!childrenEl) return out;
+    for (const child of childrenEl.children) {
+      if (!child.classList.contains('json-node')) continue;
+      const keyEl = child.querySelector(':scope > .json-row > .json-key-text');
+      const key = keyEl ? keyEl.textContent : (child.dataset.jsonKey ?? '');
+      out[key] = readJsonFromTree(child);
+    }
+    return out;
+  }
+  if (type === 'array') {
+    const out = [];
+    const childrenEl = node.querySelector(':scope > .json-children');
+    if (!childrenEl) return out;
+    for (const child of childrenEl.children) {
+      if (!child.classList.contains('json-node')) continue;
+      out.push(readJsonFromTree(child));
+    }
+    return out;
+  }
+  const valueEl = node.querySelector(':scope > .json-row > .json-value-text');
+  const text = valueEl?.textContent ?? '';
+  if (type === 'number') {
+    const n = Number(text);
+    return Number.isFinite(n) ? n : text;
+  }
+  if (type === 'boolean') return text.trim().toLowerCase() === 'true';
+  if (type === 'null') return null;
+  return text;
+}
+
+let jsonTreeEditTimer = null;
+
+function onJsonTreeInlineEdit(event) {
+  if (!event.target.closest('[contenteditable]')) return;
+  window.clearTimeout(jsonTreeEditTimer);
+  jsonTreeEditTimer = window.setTimeout(syncJsonTreeToEditor, 250);
+}
+
+function onJsonTreeEditKeydown(event) {
+  const editable = event.target.closest('[contenteditable]');
+  if (!editable) return;
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    editable.blur();
+  }
+}
+
+function syncJsonTreeToEditor() {
+  const jsonContent = document.getElementById('jsonContent');
+  const root = jsonContent?.firstElementChild;
+  if (!root || !root.classList.contains('json-node')) return;
+  try {
+    const parsed = readJsonFromTree(root);
+    const formatted = JSON.stringify(parsed, null, 2);
+    state.content.json = formatted;
+    els.editor.value = formatted;
+    renderLineNumbers();
+    persistState('autosaveSaved');
+  } catch (error) {
+    console.warn('JSON tree sync failed:', error);
+  }
 }
 
 function getSqlLineClass(line) {
@@ -461,25 +559,15 @@ function renderSql(content) {
   els.preview.className = 'preview preview--sql';
   const formatted = content ? formatSql(content) : '';
   const highlighted = highlightSql(formatted);
-  const lines = highlighted.split('\n');
-  const lineNumbersHtml = lines.map((_, i) => `<div class="sql-line-item">${i + 1}</div>`).join('');
-  const contentHtml = lines.map((line) => {
+  const contentHtml = highlighted.split('\n').map((line) => {
     const lineClass = getSqlLineClass(line);
     return `<div class="sql-line ${lineClass}">${line || ' '}</div>`;
   }).join('');
   els.preview.innerHTML = `
     <div class="sql-preview">
-      <div class="sql-line-numbers" aria-hidden="true">${lineNumbersHtml}</div>
       <pre class="sql-code" id="sqlContent"><code>${contentHtml}</code></pre>
     </div>
   `;
-  const sqlContent = document.getElementById('sqlContent');
-  const sqlLineNumbers = els.preview.querySelector('.sql-line-numbers');
-  if (sqlContent && sqlLineNumbers) {
-    sqlContent.addEventListener('scroll', () => {
-      sqlLineNumbers.scrollTop = sqlContent.scrollTop;
-    });
-  }
 }
 
 const SQL_KEYWORDS = new Set([

@@ -45,6 +45,7 @@
         <div class="action-group">
           <label class="upload-btn upload-btn--compact" for="fileInput" data-i18n="importBtn">导入文件</label>
           <input id="fileInput" type="file" hidden />
+          <button class="ghost-btn ghost-btn--compact" id="formatBtn" type="button" data-i18n="formatBtn" hidden>格式化</button>
           <button class="ghost-btn ghost-btn--compact" id="downloadBtn" type="button" data-i18n="downloadBtn">导出文件</button>
           <button class="primary-btn primary-btn--compact" id="copyBtn" type="button" data-i18n="copyBtn">复制内容</button>
         </div>
@@ -62,7 +63,7 @@
         </div>
         <div class="editor-body">
           <div class="line-numbers" id="editorLineNumbers" aria-hidden="true"></div>
-          <textarea id="editor" spellcheck="false"></textarea>
+          <textarea id="editor" spellcheck="false" wrap="off"></textarea>
         </div>
       </section>
 
