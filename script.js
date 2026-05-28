@@ -18,7 +18,7 @@ const i18n = {
     formatBtn: '格式化',
     toastJsonFormatted: 'JSON 已格式化',
     toastJsonInvalid: 'JSON 无效，无法格式化',
-    hintSql: '自动格式化 SQL 语句',
+    hintSql: '自动格式化 SQL；预览区可直接编辑',
     previewLive: '实时渲染',
     previewTip: '优雅阅读视图',
     placeholderMarkdown: '在这里输入 Markdown 与 LaTeX 内容...',
@@ -56,7 +56,7 @@ const i18n = {
     formatBtn: 'Format',
     toastJsonFormatted: 'JSON formatted',
     toastJsonInvalid: 'Invalid JSON, cannot format',
-    hintSql: 'Format SQL statements automatically',
+    hintSql: 'Auto-format SQL; preview is editable',
     previewLive: 'Live preview',
     previewTip: 'Elegant reading view',
     placeholderMarkdown: 'Type Markdown and LaTeX content here...',
@@ -565,9 +565,41 @@ function renderSql(content) {
   }).join('');
   els.preview.innerHTML = `
     <div class="sql-preview">
-      <pre class="sql-code" id="sqlContent"><code>${contentHtml}</code></pre>
+      <pre class="sql-code" id="sqlContent"><code contenteditable="plaintext-only" spellcheck="false" id="sqlEditable">${contentHtml}</code></pre>
     </div>
   `;
+  const sqlEditable = document.getElementById('sqlEditable');
+  if (sqlEditable) {
+    sqlEditable.addEventListener('input', onSqlPreviewInput);
+    sqlEditable.addEventListener('blur', onSqlPreviewBlur);
+  }
+}
+
+function onSqlPreviewInput(event) {
+  const raw = event.target.innerText;
+  state.content.sql = raw;
+  els.editor.value = raw;
+  renderLineNumbers();
+  persistState('autosaveSaved');
+}
+
+function onSqlPreviewBlur(event) {
+  const raw = event.target.innerText;
+  rerenderSqlHighlight(raw);
+}
+
+function rerenderSqlHighlight(content) {
+  const sqlEditable = document.getElementById('sqlEditable');
+  if (!sqlEditable) return;
+  const formatted = content ? formatSql(content) : '';
+  const highlighted = highlightSql(formatted);
+  const contentHtml = highlighted.split('\n').map((line) => {
+    const lineClass = getSqlLineClass(line);
+    return `<div class="sql-line ${lineClass}">${line || ' '}</div>`;
+  }).join('');
+  sqlEditable.innerHTML = contentHtml;
+  sqlEditable.addEventListener('input', onSqlPreviewInput);
+  sqlEditable.addEventListener('blur', onSqlPreviewBlur);
 }
 
 const SQL_KEYWORDS = new Set([

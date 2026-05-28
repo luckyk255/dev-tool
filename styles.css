@@ -690,7 +690,21 @@ body[data-theme="dark"] .sql-operator {
   color: #7dd3fc;
 }
 
-.sql-code::selection,
+.sql-code code[contenteditable] {
+  outline: none;
+  cursor: text;
+  caret-color: var(--brand);
+}
+
+.sql-code code[contenteditable]:focus {
+  background: rgba(99, 102, 241, 0.04);
+  border-radius: 4px;
+}
+
+body[data-theme="dark"] .sql-code code[contenteditable]:focus {
+  background: rgba(99, 102, 241, 0.08);
+}
+
 .sql-line::selection {
   background: rgba(59, 130, 246, 0.22);
 }
