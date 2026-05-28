@@ -338,113 +338,7 @@ body[data-theme="dark"] .mode-group .mode-btn.active {
 }
 
 .preview-body {
-  display: flex;
-  flex-direction: column;
   background: var(--panel-strong);
-  min-height: 0;
-}
-
-.preview-body[data-layout="code"] #preview {
-  display: none;
-}
-
-.preview-body[data-layout="markdown"] .preview-edit-wrap {
-  display: none;
-}
-
-.preview-body[data-layout="markdown"] #preview {
-  height: 100%;
-  flex: 1;
-  min-height: 0;
-}
-
-.preview-edit-wrap {
-  display: grid;
-  grid-template-columns: 60px 1fr;
-  min-height: 0;
-  flex: 1;
-}
-
-.preview-body[data-layout="code"] .preview-edit-wrap {
-  height: 100%;
-  min-height: 0;
-}
-
-.preview-code-pane {
-  position: relative;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--panel-strong);
-}
-
-.preview-body[data-layout="code"] .preview-edit-wrap {
-  display: grid;
-  grid-template-columns: 60px 1fr;
-  background: var(--panel-strong);
-}
-
-.preview-body[data-layout="code"] .preview-code-pane {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.2)),
-    var(--panel-strong);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
-}
-
-body[data-theme="dark"] .preview-body[data-layout="code"] .preview-code-pane {
-  background:
-    linear-gradient(180deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.92)),
-    var(--panel-strong);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.preview-highlight,
-#previewEditor {
-  position: absolute;
-  inset: 0;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  border: none;
-  font: 15px/1.7 var(--code-font);
-  tab-size: 4;
-  white-space: pre;
-  overflow: auto;
-  word-wrap: normal;
-}
-
-.preview-highlight {
-  z-index: 1;
-  pointer-events: none;
-  color: var(--text);
-  background: transparent;
-}
-
-.preview-highlight-code {
-  display: block;
-  margin: 0;
-  padding: 0;
-  font: inherit;
-  line-height: 1.7;
-  white-space: pre;
-}
-
-#previewEditor {
-  z-index: 2;
-  resize: none;
-  outline: none;
-  color: transparent;
-  caret-color: var(--text);
-  -webkit-text-fill-color: transparent;
-  background: transparent;
-}
-
-#previewEditor::selection {
-  background: rgba(59, 130, 246, 0.22);
 }
 
 .preview {
@@ -452,7 +346,6 @@ body[data-theme="dark"] .preview-body[data-layout="code"] .preview-code-pane {
   height: 100%;
   padding: 0;
   overflow: auto;
-  min-height: 0;
 }
 
 .preview.markdown-body {

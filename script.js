@@ -20,8 +20,7 @@ const i18n = {
     toastJsonInvalid: 'JSON 无效，无法格式化',
     hintSql: '自动格式化 SQL 语句',
     previewLive: '实时渲染',
-    previewTipRead: '优雅阅读视图',
-    previewTipEdit: '可编辑预览',
+    previewTip: '优雅阅读视图',
     placeholderMarkdown: '在这里输入 Markdown 与 LaTeX 内容...',
     placeholderJson: '在这里输入 JSON 文本...',
     placeholderSql: '在这里输入 SQL 语句...',
@@ -59,8 +58,7 @@ const i18n = {
     toastJsonInvalid: 'Invalid JSON, cannot format',
     hintSql: 'Format SQL statements automatically',
     previewLive: 'Live preview',
-    previewTipRead: 'Elegant reading view',
-    previewTipEdit: 'Editable preview',
+    previewTip: 'Elegant reading view',
     placeholderMarkdown: 'Type Markdown and LaTeX content here...',
     placeholderJson: 'Type JSON here...',
     placeholderSql: 'Type SQL here...',
@@ -141,11 +139,6 @@ window.addEventListener('DOMContentLoaded', () => {
 function cacheElements() {
   els.editor = document.getElementById('editor');
   els.preview = document.getElementById('preview');
-  els.previewBody = document.getElementById('previewBody');
-  els.previewEditor = document.getElementById('previewEditor');
-  els.previewHighlight = document.getElementById('previewHighlight');
-  els.previewCodePane = document.getElementById('previewCodePane');
-  els.previewLineNumbers = document.getElementById('previewLineNumbers');
   els.modeGroup = document.getElementById('modeGroup');
   els.editorLineNumbers = document.getElementById('editorLineNumbers');
   els.copyBtn = document.getElementById('copyBtn');
@@ -164,11 +157,6 @@ function cacheElements() {
 function bindEvents() {
   els.editor.addEventListener('input', onEditorInput);
   els.editor.addEventListener('scroll', syncEditorLineNumbers);
-  els.previewEditor.addEventListener('input', onPreviewEditorInput);
-  els.previewEditor.addEventListener('scroll', () => {
-    syncPreviewLineNumbers();
-    syncPreviewHighlightScroll();
-  });
   els.copyBtn.addEventListener('click', copyContent);
   els.formatBtn.addEventListener('click', formatJsonEditor);
   els.downloadBtn.addEventListener('click', exportContent);
@@ -186,151 +174,8 @@ function bindEvents() {
 function onEditorInput() {
   state.content[state.mode] = els.editor.value;
   renderLineNumbers();
-  syncPreviewFromEditor();
+  renderPreview();
   persistState('autosaveSaved');
-}
-
-function onPreviewEditorInput() {
-  const value = els.previewEditor.value;
-  state.content[state.mode] = value;
-  els.editor.value = value;
-  renderLineNumbers();
-  if (state.mode === 'markdown') {
-    renderMarkdown(value.trim());
-  } else {
-    renderPreviewHighlight(value);
-  }
-  renderPreviewLineNumbers();
-  persistState('autosaveSaved');
-}
-
-function isPreviewEditorFocused() {
-  return document.activeElement === els.previewEditor;
-}
-
-function getPreviewEditorText(content, mode = state.mode) {
-  if (mode === 'sql') {
-    return content ? formatSql(content) : '';
-  }
-  return content;
-}
-
-function tryFormatJson(content) {
-  try {
-    return JSON.stringify(JSON.parse(content || '{}'), null, 2);
-  } catch (_) {
-    return null;
-  }
-}
-
-function syncPreviewFromEditor() {
-  if (state.mode === 'markdown') {
-    setPreviewLayout('markdown');
-    renderMarkdown(els.editor.value.trim());
-    return;
-  }
-
-  setPreviewLayout('code');
-  const previewText = getPreviewEditorText(els.editor.value);
-  if (!isPreviewEditorFocused()) {
-    els.previewEditor.value = previewText;
-  }
-
-  els.previewBody.dataset.codeView = state.mode;
-  els.preview.innerHTML = '';
-
-  renderPreviewHighlight(els.previewEditor.value);
-  renderPreviewLineNumbers();
-}
-
-function setPreviewLayout(layout) {
-  els.previewBody.dataset.layout = layout;
-}
-
-function renderPreviewHighlight(text) {
-  if (!els.previewHighlight) return;
-
-  if (state.mode === 'sql') {
-    const formatted = text || '';
-    els.previewHighlight.className = 'preview-highlight preview-highlight--sql';
-    els.previewHighlight.innerHTML = `<code class="preview-highlight-code">${highlightSql(formatted)}</code>`;
-    return;
-  }
-
-  if (state.mode === 'json') {
-    const lines = (text || '').split('\n');
-    const contentHtml = lines.map((line) => (
-      line.length ? highlightJsonLine(line) : ''
-    )).join('\n');
-    els.previewHighlight.className = 'preview-highlight preview-highlight--json';
-    els.previewHighlight.innerHTML = `<code class="preview-highlight-code">${contentHtml}</code>`;
-  }
-}
-
-function highlightJsonLine(line) {
-  if (!line.trim()) return '';
-
-  const pattern = /("(?:[^"\\]|\\.)*")(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|[{}\[\],]/g;
-  let result = '';
-  let lastIndex = 0;
-  let match = pattern.exec(line);
-
-  while (match) {
-    if (match.index > lastIndex) {
-      result += escapeHtml(line.slice(lastIndex, match.index));
-    }
-
-    const token = match[0];
-    if (match[2]) {
-      result += `<span class="json-key">${escapeHtml(match[1])}</span><span class="json-colon">:</span>`;
-    } else if (match[1]) {
-      result += `<span class="json-string">${escapeHtml(match[1])}</span>`;
-    } else if (token === 'true' || token === 'false') {
-      result += `<span class="json-boolean">${token}</span>`;
-    } else if (token === 'null') {
-      result += '<span class="json-null">null</span>';
-    } else if (/^-?\d/.test(token)) {
-      result += `<span class="json-number">${escapeHtml(token)}</span>`;
-    } else {
-      result += escapeHtml(token);
-    }
-
-    lastIndex = match.index + token.length;
-    match = pattern.exec(line);
-  }
-
-  if (lastIndex < line.length) {
-    result += escapeHtml(line.slice(lastIndex));
-  }
-
-  return result;
-}
-
-function countTextLines(text) {
-  if (!text) return 1;
-  const lines = text.split('\n');
-  if (lines.length > 1 && lines[lines.length - 1] === '') {
-    lines.pop();
-  }
-  return Math.max(1, lines.length);
-}
-
-function syncPreviewHighlightScroll() {
-  if (!els.previewHighlight) return;
-  els.previewHighlight.scrollTop = els.previewEditor.scrollTop;
-  els.previewHighlight.scrollLeft = els.previewEditor.scrollLeft;
-}
-
-function renderPreviewLineNumbers() {
-  const lineCount = countTextLines(els.previewEditor.value);
-  els.previewLineNumbers.innerHTML = Array.from({ length: lineCount }, (_, index) => (
-    `<div class="line-number-item">${index + 1}</div>`
-  )).join('');
-  syncPreviewLineNumbers();
-}
-
-function syncPreviewLineNumbers() {
-  els.previewLineNumbers.scrollTop = els.previewEditor.scrollTop;
 }
 
 function switchMode(mode) {
@@ -393,11 +238,7 @@ function updateModeButtons() {
 
 function updatePlaceholders() {
   const map = { markdown: 'placeholderMarkdown', json: 'placeholderJson', sql: 'placeholderSql' };
-  const placeholder = t(map[state.mode] ?? 'placeholderMarkdown');
-  els.editor.placeholder = placeholder;
-  if (state.mode !== 'markdown') {
-    els.previewEditor.placeholder = placeholder;
-  }
+  els.editor.placeholder = t(map[state.mode] ?? 'placeholderMarkdown');
 }
 
 function updateHints() {
@@ -427,12 +268,11 @@ function formatJsonEditor() {
 function loadCurrentModeContent() {
   els.editor.value = state.content[state.mode];
   els.editor.scrollTop = 0;
-  els.previewEditor.scrollTop = 0;
   syncEditorLineNumbers();
 }
 
 function renderLineNumbers() {
-  const lineCount = countTextLines(els.editor.value);
+  const lineCount = Math.max(1, els.editor.value.split('\n').length);
   els.editorLineNumbers.innerHTML = Array.from({ length: lineCount }, (_, index) => (
     `<div class="line-number-item">${index + 1}</div>`
   )).join('');
@@ -444,7 +284,16 @@ function syncEditorLineNumbers() {
 }
 
 function renderPreview() {
-  syncPreviewFromEditor();
+  const raw = els.editor.value.trim();
+  if (state.mode === 'markdown') {
+    renderMarkdown(raw);
+    return;
+  }
+  if (state.mode === 'sql') {
+    renderSql(raw);
+    return;
+  }
+  renderJson(raw);
 }
 
 function renderMarkdown(content) {
@@ -1012,7 +861,7 @@ function tokenizeSql(sql) {
 }
 
 function highlightSql(sql) {
-  return sql.split('\n').map((line) => (line ? highlightSqlLine(line) : '')).join('\n');
+  return sql.split('\n').map((line) => (line ? highlightSqlLine(line) : ' ')).join('\n');
 }
 
 function highlightSqlLine(line) {
@@ -1053,8 +902,13 @@ function sqlTokenClass(tok) {
 
 async function copyContent() {
   let text = els.editor.value;
-  const formattedJson = state.mode === 'json' ? tryFormatJson(text) : null;
-  if (formattedJson) text = formattedJson;
+  if (state.mode === 'json') {
+    try {
+      text = JSON.stringify(JSON.parse(text || '{}'), null, 2);
+    } catch (_) {
+      // keep raw content when invalid
+    }
+  }
   if (state.mode === 'sql') {
     text = formatSql(text);
   }
@@ -1069,8 +923,13 @@ async function copyContent() {
 
 function exportContent() {
   let content = els.editor.value;
-  const formattedJson = state.mode === 'json' ? tryFormatJson(content) : null;
-  if (formattedJson) content = formattedJson;
+  if (state.mode === 'json') {
+    try {
+      content = JSON.stringify(JSON.parse(content || '{}'), null, 2);
+    } catch (_) {
+      // keep raw content when invalid
+    }
+  }
   if (state.mode === 'sql') {
     content = formatSql(content);
   }
