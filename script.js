@@ -8,6 +8,7 @@ const i18n = {
     modeMarkdown: 'Markdown + LaTeX',
     modeJson: 'JSON 格式化',
     modeSql: 'SQL 格式化',
+    modeTimestamp: '时间转换',
     copyBtn: '复制内容',
     importBtn: '导入文件',
     downloadBtn: '导出文件',
@@ -37,7 +38,20 @@ const i18n = {
     themeDark: '深色',
     downloadNameMarkdown: '编辑内容.md',
     downloadNameJson: 'formatted.json',
-    downloadNameSql: 'formatted.sql'
+    downloadNameSql: 'formatted.sql',
+    timestampTitle: '时间戳转换',
+    timestampTip: '自动识别秒和毫秒时间戳',
+    useCurrentTime: '使用当前时间',
+    timestampLabel: '时间戳',
+    timestampHelp: '10 位按秒、13 位按毫秒处理',
+    toDateTime: '转换为时间',
+    dateTimeLabel: '本地时间',
+    dateTimeHelp: '可手动输入，例如 2026-06-13 00:00:00',
+    toTimestamp: '转换为时间戳',
+    secondsTimestamp: '秒级时间戳',
+    millisecondsTimestamp: '毫秒级时间戳',
+    toastInvalidTimestamp: '请输入有效的时间戳',
+    toastInvalidDateTime: '请输入有效的本地时间'
   },
   en: {
     title: 'Editor-Pro',
@@ -46,6 +60,7 @@ const i18n = {
     modeMarkdown: 'Markdown + LaTeX',
     modeJson: 'JSON Formatter',
     modeSql: 'SQL Formatter',
+    modeTimestamp: 'Time Converter',
     copyBtn: 'Copy Content',
     importBtn: 'Import File',
     downloadBtn: 'Export File',
@@ -75,7 +90,20 @@ const i18n = {
     themeDark: 'Dark',
     downloadNameMarkdown: 'editor-content.md',
     downloadNameJson: 'formatted.json',
-    downloadNameSql: 'formatted.sql'
+    downloadNameSql: 'formatted.sql',
+    timestampTitle: 'Timestamp Converter',
+    timestampTip: 'Automatically detects seconds and milliseconds',
+    useCurrentTime: 'Use Current Time',
+    timestampLabel: 'Timestamp',
+    timestampHelp: '10 digits are seconds; 13 digits are milliseconds',
+    toDateTime: 'Convert to Time',
+    dateTimeLabel: 'Local Time',
+    dateTimeHelp: 'Enter manually, for example 2026-06-13 00:00:00',
+    toTimestamp: 'Convert to Timestamp',
+    secondsTimestamp: 'Seconds',
+    millisecondsTimestamp: 'Milliseconds',
+    toastInvalidTimestamp: 'Enter a valid timestamp',
+    toastInvalidDateTime: 'Select a valid local time'
   }
 };
 
@@ -129,10 +157,14 @@ window.addEventListener('DOMContentLoaded', () => {
   bindEvents();
   applyTheme();
   applyLanguage();
-  loadCurrentModeContent();
+  useCurrentTime();
+  updateWorkspaceMode();
   updateJsonControls();
-  renderLineNumbers();
-  renderPreview();
+  if (state.mode !== 'timestamp') {
+    loadCurrentModeContent();
+    renderLineNumbers();
+    renderPreview();
+  }
   applySplitRatio();
 });
 
@@ -152,6 +184,14 @@ function cacheElements() {
   els.workspace = document.getElementById('workspace');
   els.splitter = document.getElementById('splitter');
   els.formatBtn = document.getElementById('formatBtn');
+  els.timestampWorkspace = document.getElementById('timestampWorkspace');
+  els.timestampInput = document.getElementById('timestampInput');
+  els.dateTimeInput = document.getElementById('dateTimeInput');
+  els.timestampToTimeBtn = document.getElementById('timestampToTimeBtn');
+  els.timeToTimestampBtn = document.getElementById('timeToTimestampBtn');
+  els.useCurrentTimeBtn = document.getElementById('useCurrentTimeBtn');
+  els.secondsTimestamp = document.getElementById('secondsTimestamp');
+  els.millisecondsTimestamp = document.getElementById('millisecondsTimestamp');
 }
 
 function bindEvents() {
@@ -163,6 +203,9 @@ function bindEvents() {
   els.fileInput.addEventListener('change', importFile);
   els.langToggle.addEventListener('click', toggleLanguage);
   els.themeToggle.addEventListener('click', toggleTheme);
+  els.timestampToTimeBtn.addEventListener('click', convertTimestampToTime);
+  els.timeToTimestampBtn.addEventListener('click', convertTimeToTimestamp);
+  els.useCurrentTimeBtn.addEventListener('click', useCurrentTime);
   els.modeGroup.addEventListener('click', (event) => {
     const target = event.target.closest('[data-mode]');
     if (!target) return;
@@ -180,16 +223,29 @@ function onEditorInput() {
 
 function switchMode(mode) {
   if (mode === state.mode) return;
-  state.content[state.mode] = els.editor.value;
+  if (state.mode !== 'timestamp') state.content[state.mode] = els.editor.value;
   state.mode = mode;
-  loadCurrentModeContent();
+  updateWorkspaceMode();
   updateModeButtons();
+  updateJsonControls();
+  if (state.mode === 'timestamp') {
+    persistState();
+    return;
+  }
+
+  loadCurrentModeContent();
   updatePlaceholders();
   updateHints();
   renderLineNumbers();
   renderPreview();
-  updateJsonControls();
   persistState();
+}
+
+function updateWorkspaceMode() {
+  const isTimestamp = state.mode === 'timestamp';
+  els.workspace.hidden = isTimestamp;
+  els.timestampWorkspace.hidden = !isTimestamp;
+  document.querySelector('.action-group').hidden = isTimestamp;
 }
 
 function toggleLanguage() {
@@ -250,6 +306,74 @@ function updateJsonControls() {
   els.formatBtn.hidden = state.mode !== 'json';
 }
 
+function convertTimestampToTime() {
+  const value = els.timestampInput.value.trim();
+  if (!/^-?\d+$/.test(value)) {
+    showToast(t('toastInvalidTimestamp'));
+    return;
+  }
+
+  const numericValue = Number(value);
+  const milliseconds = Math.abs(numericValue) < 1e11 ? numericValue * 1000 : numericValue;
+  const date = new Date(milliseconds);
+  if (Number.isNaN(date.getTime())) {
+    showToast(t('toastInvalidTimestamp'));
+    return;
+  }
+
+  els.dateTimeInput.value = formatLocalDateTime(date);
+  updateTimestampResults(date);
+}
+
+function convertTimeToTimestamp() {
+  const date = parseLocalDateTime(els.dateTimeInput.value);
+  if (!date) {
+    showToast(t('toastInvalidDateTime'));
+    return;
+  }
+
+  updateTimestampResults(date);
+  els.timestampInput.value = String(Math.floor(date.getTime() / 1000));
+}
+
+function useCurrentTime() {
+  const now = new Date();
+  els.dateTimeInput.value = formatLocalDateTime(now);
+  els.timestampInput.value = String(Math.floor(now.getTime() / 1000));
+  updateTimestampResults(now);
+}
+
+function updateTimestampResults(date) {
+  const milliseconds = date.getTime();
+  els.secondsTimestamp.textContent = String(Math.floor(milliseconds / 1000));
+  els.millisecondsTimestamp.textContent = String(milliseconds);
+}
+
+function parseLocalDateTime(value) {
+  const match = value.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hours = Number(match[4]);
+  const minutes = Number(match[5]);
+  const seconds = Number(match[6] ?? 0);
+  const date = new Date(year, month - 1, day, hours, minutes, seconds);
+  const isValid = date.getFullYear() === year
+    && date.getMonth() === month - 1
+    && date.getDate() === day
+    && date.getHours() === hours
+    && date.getMinutes() === minutes
+    && date.getSeconds() === seconds;
+  return isValid ? date : null;
+}
+
+function formatLocalDateTime(date) {
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 function formatJsonEditor() {
   if (state.mode !== 'json') return;
   try {
@@ -266,6 +390,7 @@ function formatJsonEditor() {
 }
 
 function loadCurrentModeContent() {
+  if (state.mode === 'timestamp') return;
   els.editor.value = state.content[state.mode];
   els.editor.scrollTop = 0;
   syncEditorLineNumbers();

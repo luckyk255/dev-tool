@@ -41,6 +41,7 @@
           <button class="mode-btn active" type="button" data-mode="markdown" data-i18n="modeMarkdown" role="tab" aria-selected="true">Markdown + LaTeX</button>
           <button class="mode-btn" type="button" data-mode="json" data-i18n="modeJson" role="tab" aria-selected="false">JSON Formatter</button>
           <button class="mode-btn" type="button" data-mode="sql" data-i18n="modeSql" role="tab" aria-selected="false">SQL Formatter</button>
+          <button class="mode-btn" type="button" data-mode="timestamp" data-i18n="modeTimestamp" role="tab" aria-selected="false">时间转换</button>
         </div>
         <div class="action-group">
           <label class="upload-btn upload-btn--compact" for="fileInput" data-i18n="importBtn">导入文件</label>
@@ -79,6 +80,43 @@
         </div>
         <div class="preview-body">
           <div id="preview" class="preview markdown-body"></div>
+        </div>
+      </section>
+    </main>
+
+    <main class="timestamp-workspace" id="timestampWorkspace" hidden>
+      <section class="panel timestamp-panel glass-card">
+        <div class="panel-header">
+          <div>
+            <span data-i18n="timestampTitle">时间戳转换</span>
+            <span class="panel-tip" data-i18n="timestampTip">自动识别秒和毫秒时间戳</span>
+          </div>
+          <button class="ghost-btn ghost-btn--compact" id="useCurrentTimeBtn" type="button" data-i18n="useCurrentTime">使用当前时间</button>
+        </div>
+        <div class="timestamp-body">
+          <div class="timestamp-field">
+            <label for="timestampInput" data-i18n="timestampLabel">时间戳</label>
+            <div class="timestamp-input-row">
+              <input id="timestampInput" type="text" inputmode="numeric" placeholder="1717986912 / 1717986912000" />
+              <button class="primary-btn" id="timestampToTimeBtn" type="button" data-i18n="toDateTime">转换为时间</button>
+            </div>
+            <span class="field-help" data-i18n="timestampHelp">10 位按秒、13 位按毫秒处理</span>
+          </div>
+
+          <div class="timestamp-divider" aria-hidden="true">⇄</div>
+
+          <div class="timestamp-field">
+            <label for="dateTimeInput" data-i18n="dateTimeLabel">本地时间</label>
+            <div class="timestamp-input-row">
+              <input id="dateTimeInput" type="text" placeholder="2026-06-13 00:00:00" />
+              <button class="primary-btn" id="timeToTimestampBtn" type="button" data-i18n="toTimestamp">转换为时间戳</button>
+            </div>
+            <span class="field-help" data-i18n="dateTimeHelp">可手动输入，例如 2026-06-13 00:00:00</span>
+            <div class="timestamp-results">
+              <div><span data-i18n="secondsTimestamp">秒级时间戳</span><code id="secondsTimestamp">-</code></div>
+              <div><span data-i18n="millisecondsTimestamp">毫秒级时间戳</span><code id="millisecondsTimestamp">-</code></div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
