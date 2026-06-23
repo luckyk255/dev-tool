@@ -42,6 +42,7 @@
           <button class="mode-btn" type="button" data-mode="json" data-i18n="modeJson" role="tab" aria-selected="false">JSON Formatter</button>
           <button class="mode-btn" type="button" data-mode="sql" data-i18n="modeSql" role="tab" aria-selected="false">SQL Formatter</button>
           <button class="mode-btn" type="button" data-mode="timestamp" data-i18n="modeTimestamp" role="tab" aria-selected="false">时间转换</button>
+          <button class="mode-btn" type="button" data-mode="notes" data-i18n="modeNotes" role="tab" aria-selected="false">图文笔记</button>
         </div>
         <div class="action-group">
           <label class="upload-btn upload-btn--compact" for="fileInput" data-i18n="importBtn">导入文件</label>
@@ -118,6 +119,45 @@
             </div>
           </div>
         </div>
+      </section>
+    </main>
+
+    <main class="notes-workspace" id="notesWorkspace" hidden>
+      <aside class="panel notes-sidebar glass-card">
+        <div class="panel-header">
+          <div>
+            <span data-i18n="notesLibrary">文章收藏</span>
+            <span class="panel-tip" id="notesCount"></span>
+          </div>
+          <button class="primary-btn primary-btn--compact" id="newNoteBtn" type="button" data-i18n="newNote">新建</button>
+        </div>
+        <div class="notes-list" id="notesList"></div>
+      </aside>
+
+      <section class="panel note-panel glass-card">
+        <div class="note-heading">
+          <input id="noteTitle" type="text" data-i18n-placeholder="noteTitlePlaceholder" placeholder="文章标题" />
+          <div class="note-heading-actions">
+            <span class="panel-tip" id="noteSaveStatus" data-i18n="notesSaved">已保存到本地</span>
+            <button class="ghost-btn ghost-btn--compact danger-btn" id="deleteNoteBtn" type="button" data-i18n="deleteNote">删除</button>
+          </div>
+        </div>
+        <div class="note-toolbar" id="noteToolbar" aria-label="Rich text tools">
+          <button type="button" data-command="bold" title="Bold"><strong>B</strong></button>
+          <button type="button" data-command="italic" title="Italic"><em>I</em></button>
+          <button type="button" data-command="formatBlock" data-value="h2" data-i18n="noteHeading">标题</button>
+          <button type="button" data-command="formatBlock" data-value="blockquote" data-i18n="noteQuote">引用</button>
+          <button type="button" data-command="createLink" data-i18n="noteLink">链接</button>
+          <label class="note-image-btn" for="noteImageInput" data-i18n="insertImage">插入图片</label>
+          <input id="noteImageInput" type="file" accept="image/*" hidden />
+        </div>
+        <div
+          class="note-editor"
+          id="noteEditor"
+          contenteditable="true"
+          data-i18n-placeholder="noteEditorPlaceholder"
+          data-placeholder="粘贴文章或在这里开始写作；可直接粘贴网页图文"
+        ></div>
       </section>
     </main>
   </div>

@@ -1,4 +1,7 @@
 const STORAGE_KEY = 'editor-pro';
+const NOTES_DB_NAME = 'editor-pro-notes';
+const NOTES_STORE_NAME = 'notes';
+const EDITOR_MODES = new Set(['markdown', 'json', 'sql']);
 
 const i18n = {
   zh: {
@@ -9,6 +12,7 @@ const i18n = {
     modeJson: 'JSON 格式化',
     modeSql: 'SQL 格式化',
     modeTimestamp: '时间转换',
+    modeNotes: '图文笔记',
     copyBtn: '复制内容',
     importBtn: '导入文件',
     downloadBtn: '导出文件',
@@ -51,7 +55,23 @@ const i18n = {
     secondsTimestamp: '秒级时间戳',
     millisecondsTimestamp: '毫秒级时间戳',
     toastInvalidTimestamp: '请输入有效的时间戳',
-    toastInvalidDateTime: '请输入有效的本地时间'
+    toastInvalidDateTime: '请输入有效的本地时间',
+    notesLibrary: '文章收藏',
+    newNote: '新建',
+    deleteNote: '删除',
+    notesSaved: '已保存到本地',
+    notesSaving: '正在保存...',
+    noteTitlePlaceholder: '文章标题',
+    noteEditorPlaceholder: '粘贴文章或在这里开始写作；可直接粘贴网页图文',
+    noteHeading: '标题',
+    noteQuote: '引用',
+    noteLink: '链接',
+    insertImage: '插入图片',
+    noteUntitled: '未命名文章',
+    noteCount: '{count} 篇',
+    confirmDeleteNote: '确定删除这篇文章吗？',
+    linkPrompt: '请输入链接地址',
+    toastImageFailed: '图片读取失败'
   },
   en: {
     title: 'Editor-Pro',
@@ -61,6 +81,7 @@ const i18n = {
     modeJson: 'JSON Formatter',
     modeSql: 'SQL Formatter',
     modeTimestamp: 'Time Converter',
+    modeNotes: 'Visual Notes',
     copyBtn: 'Copy Content',
     importBtn: 'Import File',
     downloadBtn: 'Export File',
@@ -103,7 +124,23 @@ const i18n = {
     secondsTimestamp: 'Seconds',
     millisecondsTimestamp: 'Milliseconds',
     toastInvalidTimestamp: 'Enter a valid timestamp',
-    toastInvalidDateTime: 'Select a valid local time'
+    toastInvalidDateTime: 'Select a valid local time',
+    notesLibrary: 'Saved Articles',
+    newNote: 'New',
+    deleteNote: 'Delete',
+    notesSaved: 'Saved locally',
+    notesSaving: 'Saving...',
+    noteTitlePlaceholder: 'Article title',
+    noteEditorPlaceholder: 'Paste an article or start writing here; rich web content is supported',
+    noteHeading: 'Heading',
+    noteQuote: 'Quote',
+    noteLink: 'Link',
+    insertImage: 'Insert image',
+    noteUntitled: 'Untitled article',
+    noteCount: '{count} notes',
+    confirmDeleteNote: 'Delete this article?',
+    linkPrompt: 'Enter a link',
+    toastImageFailed: 'Could not read image'
   }
 };
 
@@ -150,17 +187,25 @@ const state = {
 };
 
 const els = {};
+const notesState = {
+  db: null,
+  notes: [],
+  activeId: null,
+  saveTimer: null,
+  savedRange: null
+};
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   cacheElements();
   restoreState();
   bindEvents();
   applyTheme();
   applyLanguage();
   useCurrentTime();
+  await initializeNotes();
   updateWorkspaceMode();
   updateJsonControls();
-  if (state.mode !== 'timestamp') {
+  if (EDITOR_MODES.has(state.mode)) {
     loadCurrentModeContent();
     renderLineNumbers();
     renderPreview();
@@ -192,6 +237,16 @@ function cacheElements() {
   els.useCurrentTimeBtn = document.getElementById('useCurrentTimeBtn');
   els.secondsTimestamp = document.getElementById('secondsTimestamp');
   els.millisecondsTimestamp = document.getElementById('millisecondsTimestamp');
+  els.notesWorkspace = document.getElementById('notesWorkspace');
+  els.notesList = document.getElementById('notesList');
+  els.notesCount = document.getElementById('notesCount');
+  els.newNoteBtn = document.getElementById('newNoteBtn');
+  els.deleteNoteBtn = document.getElementById('deleteNoteBtn');
+  els.noteTitle = document.getElementById('noteTitle');
+  els.noteEditor = document.getElementById('noteEditor');
+  els.noteToolbar = document.getElementById('noteToolbar');
+  els.noteImageInput = document.getElementById('noteImageInput');
+  els.noteSaveStatus = document.getElementById('noteSaveStatus');
 }
 
 function bindEvents() {
@@ -206,6 +261,20 @@ function bindEvents() {
   els.timestampToTimeBtn.addEventListener('click', convertTimestampToTime);
   els.timeToTimestampBtn.addEventListener('click', convertTimeToTimestamp);
   els.useCurrentTimeBtn.addEventListener('click', useCurrentTime);
+  els.newNoteBtn.addEventListener('click', createNote);
+  els.deleteNoteBtn.addEventListener('click', deleteActiveNote);
+  els.noteTitle.addEventListener('input', scheduleNoteSave);
+  els.noteEditor.addEventListener('input', scheduleNoteSave);
+  els.noteEditor.addEventListener('paste', handleNotePaste);
+  els.noteEditor.addEventListener('keyup', rememberNoteSelection);
+  els.noteEditor.addEventListener('mouseup', rememberNoteSelection);
+  els.noteToolbar.addEventListener('mousedown', (event) => event.preventDefault());
+  els.noteToolbar.addEventListener('click', handleNoteToolbar);
+  els.noteImageInput.addEventListener('change', insertSelectedImage);
+  els.notesList.addEventListener('click', async (event) => {
+    const item = event.target.closest('[data-note-id]');
+    if (item) await selectNote(item.dataset.noteId);
+  });
   els.modeGroup.addEventListener('click', (event) => {
     const target = event.target.closest('[data-mode]');
     if (!target) return;
@@ -223,12 +292,12 @@ function onEditorInput() {
 
 function switchMode(mode) {
   if (mode === state.mode) return;
-  if (state.mode !== 'timestamp') state.content[state.mode] = els.editor.value;
+  if (EDITOR_MODES.has(state.mode)) state.content[state.mode] = els.editor.value;
   state.mode = mode;
   updateWorkspaceMode();
   updateModeButtons();
   updateJsonControls();
-  if (state.mode === 'timestamp') {
+  if (!EDITOR_MODES.has(state.mode)) {
     persistState();
     return;
   }
@@ -243,9 +312,11 @@ function switchMode(mode) {
 
 function updateWorkspaceMode() {
   const isTimestamp = state.mode === 'timestamp';
-  els.workspace.hidden = isTimestamp;
+  const isNotes = state.mode === 'notes';
+  els.workspace.hidden = isTimestamp || isNotes;
   els.timestampWorkspace.hidden = !isTimestamp;
-  document.querySelector('.action-group').hidden = isTimestamp;
+  els.notesWorkspace.hidden = !isNotes;
+  document.querySelector('.action-group').hidden = isTimestamp || isNotes;
 }
 
 function toggleLanguage() {
@@ -253,7 +324,7 @@ function toggleLanguage() {
   applyLanguage();
   updateHints();
   updatePlaceholders();
-  renderPreview();
+  if (EDITOR_MODES.has(state.mode)) renderPreview();
   persistState();
 }
 
@@ -269,12 +340,18 @@ function applyLanguage() {
     const key = node.dataset.i18n;
     node.textContent = t(key);
   });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach((node) => {
+    const value = t(node.dataset.i18nPlaceholder);
+    if (node instanceof HTMLInputElement) node.placeholder = value;
+    else node.dataset.placeholder = value;
+  });
   els.langToggle.textContent = state.lang === 'zh' ? 'EN' : '中';
   els.themeToggle.textContent = state.theme === 'light' ? t('themeDark') : t('themeLight');
   els.saveStatus.textContent = t('autosaveReady');
   updateModeButtons();
   updatePlaceholders();
   updateJsonControls();
+  renderNotesList();
 }
 
 function applyTheme() {
@@ -293,17 +370,340 @@ function updateModeButtons() {
 }
 
 function updatePlaceholders() {
+  if (!EDITOR_MODES.has(state.mode)) return;
   const map = { markdown: 'placeholderMarkdown', json: 'placeholderJson', sql: 'placeholderSql' };
   els.editor.placeholder = t(map[state.mode] ?? 'placeholderMarkdown');
 }
 
 function updateHints() {
+  if (!EDITOR_MODES.has(state.mode)) return;
   const map = { markdown: 'hintMarkdown', json: 'hintJson', sql: 'hintSql' };
   els.modeHint.textContent = t(map[state.mode] ?? 'hintMarkdown');
 }
 
 function updateJsonControls() {
   els.formatBtn.hidden = state.mode !== 'json';
+}
+
+async function initializeNotes() {
+  notesState.db = await openNotesDb();
+  notesState.notes = await getAllNotes();
+  if (!notesState.notes.length) {
+    await createNote();
+    return;
+  }
+  await selectNote(notesState.notes[0].id);
+}
+
+function openNotesDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(NOTES_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(NOTES_STORE_NAME, { keyPath: 'id' });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function notesStore(mode = 'readonly') {
+  return notesState.db.transaction(NOTES_STORE_NAME, mode).objectStore(NOTES_STORE_NAME);
+}
+
+function getAllNotes() {
+  return new Promise((resolve, reject) => {
+    const request = notesStore().getAll();
+    request.onsuccess = () => resolve(request.result.sort((a, b) => b.updatedAt - a.updatedAt));
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function putNote(note) {
+  return new Promise((resolve, reject) => {
+    const request = notesStore('readwrite').put(note);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function removeNote(id) {
+  return new Promise((resolve, reject) => {
+    const request = notesStore('readwrite').delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function createNote() {
+  await flushPendingNoteSave();
+  const note = {
+    id: crypto.randomUUID(),
+    title: '',
+    content: '',
+    updatedAt: Date.now()
+  };
+  await putNote(note);
+  notesState.notes.unshift(note);
+  await selectNote(note.id);
+  els.noteTitle.focus();
+}
+
+async function selectNote(id) {
+  if (id !== notesState.activeId) await flushPendingNoteSave();
+  const note = notesState.notes.find((item) => item.id === id);
+  if (!note) return;
+  window.clearTimeout(notesState.saveTimer);
+  notesState.saveTimer = null;
+  notesState.activeId = id;
+  els.noteTitle.value = note.title;
+  const cleanContent = normalizeNoteHtml(note.content);
+  els.noteEditor.innerHTML = cleanContent;
+  if (cleanContent !== note.content) {
+    note.content = cleanContent;
+    await putNote(note);
+  }
+  renderNotesList();
+}
+
+function renderNotesList() {
+  if (!els.notesList) return;
+  els.notesCount.textContent = t('noteCount').replace('{count}', notesState.notes.length);
+  els.notesList.innerHTML = notesState.notes.map((note) => {
+    const title = escapeHtml(note.title.trim() || t('noteUntitled'));
+    const text = escapeHtml(htmlToText(note.content).slice(0, 90));
+    const date = new Intl.DateTimeFormat(state.lang === 'zh' ? 'zh-CN' : 'en', {
+      month: 'short',
+      day: 'numeric'
+    }).format(note.updatedAt);
+    return `
+      <button class="note-list-item ${note.id === notesState.activeId ? 'active' : ''}" type="button" data-note-id="${note.id}">
+        <strong>${title}</strong>
+        <span>${text || t('noteEditorPlaceholder')}</span>
+        <time>${date}</time>
+      </button>
+    `;
+  }).join('');
+}
+
+function scheduleNoteSave() {
+  if (!notesState.activeId) return;
+  els.noteSaveStatus.textContent = t('notesSaving');
+  window.clearTimeout(notesState.saveTimer);
+  notesState.saveTimer = window.setTimeout(() => {
+    notesState.saveTimer = null;
+    saveActiveNote();
+  }, 350);
+}
+
+async function saveActiveNote() {
+  const note = notesState.notes.find((item) => item.id === notesState.activeId);
+  if (!note) return;
+  note.title = els.noteTitle.value;
+  note.content = normalizeNoteHtml(els.noteEditor.innerHTML);
+  note.updatedAt = Date.now();
+  await putNote(note);
+  notesState.notes.sort((a, b) => b.updatedAt - a.updatedAt);
+  els.noteSaveStatus.textContent = t('notesSaved');
+  renderNotesList();
+}
+
+async function flushPendingNoteSave() {
+  if (!notesState.saveTimer) return;
+  window.clearTimeout(notesState.saveTimer);
+  notesState.saveTimer = null;
+  await saveActiveNote();
+}
+
+async function deleteActiveNote() {
+  if (!notesState.activeId || !window.confirm(t('confirmDeleteNote'))) return;
+  await removeNote(notesState.activeId);
+  notesState.notes = notesState.notes.filter((note) => note.id !== notesState.activeId);
+  if (!notesState.notes.length) {
+    await createNote();
+    return;
+  }
+  await selectNote(notesState.notes[0].id);
+}
+
+function handleNoteToolbar(event) {
+  const button = event.target.closest('[data-command]');
+  if (!button) return;
+  restoreNoteSelection();
+  const command = button.dataset.command;
+  let value = button.dataset.value ?? null;
+  if (command === 'createLink') {
+    value = window.prompt(t('linkPrompt'), 'https://');
+    if (!value) return;
+  }
+  document.execCommand(command, false, value);
+  els.noteEditor.focus();
+  scheduleNoteSave();
+}
+
+function rememberNoteSelection() {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (els.noteEditor.contains(range.commonAncestorContainer)) {
+    notesState.savedRange = range.cloneRange();
+  }
+}
+
+function restoreNoteSelection() {
+  els.noteEditor.focus();
+  if (!notesState.savedRange) return;
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(notesState.savedRange);
+}
+
+async function insertSelectedImage(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    restoreNoteSelection();
+    insertNoteHtml(`<img src="${await fileToDataUrl(file)}" alt="${escapeHtml(file.name)}">`);
+    scheduleNoteSave();
+  } catch (_) {
+    showToast(t('toastImageFailed'));
+  }
+  event.target.value = '';
+}
+
+async function handleNotePaste(event) {
+  const html = event.clipboardData?.getData('text/html');
+  const images = [...(event.clipboardData?.items ?? [])].filter((item) => item.type.startsWith('image/'));
+  if (html) {
+    event.preventDefault();
+    let cleanHtml = normalizeNoteHtml(html);
+    if (!cleanHtml.includes('<img') && images.length) {
+      cleanHtml += `<figure><img src="${await fileToDataUrl(images[0].getAsFile())}" alt=""></figure>`;
+    }
+    insertNoteHtml(cleanHtml);
+    scheduleNoteSave();
+    return;
+  }
+  if (images.length) {
+    event.preventDefault();
+    insertNoteHtml(`<img src="${await fileToDataUrl(images[0].getAsFile())}" alt="">`);
+    scheduleNoteSave();
+  }
+}
+
+function insertNoteHtml(html) {
+  document.execCommand('insertHTML', false, html);
+}
+
+function normalizeNoteHtml(html) {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+
+  template.content.querySelectorAll('picture').forEach((picture) => {
+    let image = picture.querySelector('img');
+    if (!image) {
+      image = document.createElement('img');
+      picture.append(image);
+    }
+    if (!image.getAttribute('src')) {
+      const source = [...picture.querySelectorAll('source')].map((node) => (
+        getImageSource(node)
+      )).find(Boolean);
+      if (source) image.setAttribute('src', source);
+    }
+    picture.replaceWith(image);
+  });
+
+  template.content.querySelectorAll('img').forEach((image) => {
+    const source = getImageSource(image);
+    if (source) image.setAttribute('src', source);
+  });
+
+  template.content.querySelectorAll('[style*="background"]').forEach((node) => {
+    if (node.querySelector('img')) return;
+    const match = node.getAttribute('style').match(/background(?:-image)?\s*:[^;]*url\((['"]?)(.*?)\1\)/i);
+    if (!match?.[2]) return;
+    const image = document.createElement('img');
+    image.setAttribute('src', match[2]);
+    image.setAttribute('alt', node.getAttribute('aria-label') ?? '');
+    node.append(image);
+  });
+
+  template.content.querySelectorAll('script, style, iframe, object, embed, link, meta, button, svg, canvas, form, input').forEach((node) => node.remove());
+
+  const blockSelector = 'p, h1, h2, h3, h4, h5, h6, blockquote, ul, ol, li, pre, table, figure, div, section, article';
+  [...template.content.querySelectorAll('div, section, article, header, footer, main, aside')].reverse().forEach((node) => {
+    const hasNestedBlock = [...node.children].some((child) => child.matches(blockSelector));
+    const hasContent = node.textContent.trim() || node.querySelector('img');
+    if (!hasNestedBlock && hasContent) {
+      const paragraph = document.createElement(node.querySelector('img') && !node.textContent.trim() ? 'figure' : 'p');
+      paragraph.replaceChildren(...node.childNodes);
+      node.replaceWith(paragraph);
+      return;
+    }
+    node.replaceWith(...node.childNodes);
+  });
+
+  template.content.querySelectorAll('span').forEach((node) => node.replaceWith(...node.childNodes));
+
+  const allowedTags = new Set([
+    'P', 'BR', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'BLOCKQUOTE',
+    'UL', 'OL', 'LI', 'A', 'IMG', 'STRONG', 'B', 'EM', 'I', 'U', 'S',
+    'CODE', 'PRE', 'HR', 'FIGURE', 'FIGCAPTION', 'TABLE', 'THEAD',
+    'TBODY', 'TR', 'TH', 'TD'
+  ]);
+
+  [...template.content.querySelectorAll('*')].reverse().forEach((node) => {
+    if (!allowedTags.has(node.tagName)) node.replaceWith(...node.childNodes);
+  });
+
+  template.content.querySelectorAll('*').forEach((node) => {
+    [...node.attributes].forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim().toLowerCase();
+      const allowed = (node.tagName === 'A' && ['href', 'title'].includes(name))
+        || (node.tagName === 'IMG' && ['src', 'alt', 'title'].includes(name));
+      if (!allowed || ((name === 'href' || name === 'src') && value.startsWith('javascript:'))) {
+        node.removeAttribute(attribute.name);
+      }
+    });
+    if (node.tagName === 'A') {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
+  template.content.querySelectorAll('p, figure, blockquote, li').forEach((node) => {
+    if (!node.textContent.trim() && !node.querySelector('img, br')) node.remove();
+  });
+
+  return template.innerHTML;
+}
+
+function getImageSource(node) {
+  const directSource = ['data-src', 'data-original', 'data-image-url', 'src']
+    .map((name) => node.getAttribute(name))
+    .find(Boolean);
+  if (directSource) return directSource;
+
+  const srcset = node.getAttribute('srcset') || node.getAttribute('data-srcset');
+  if (!srcset) return directSource ?? '';
+  const candidates = srcset.split(',').map((candidate) => candidate.trim().split(/\s+/)[0]).filter(Boolean);
+  return candidates.at(-1) ?? directSource ?? '';
+}
+
+function htmlToText(html) {
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  return (template.content.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 function convertTimestampToTime() {
