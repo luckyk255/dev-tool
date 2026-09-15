@@ -2,6 +2,7 @@ const STORAGE_KEY = 'editor-pro';
 const NOTES_DB_NAME = 'editor-pro-notes';
 const NOTES_STORE_NAME = 'notes';
 const EDITOR_MODES = new Set(['markdown', 'json', 'sql']);
+const CLOUDFARE_CURL_PROXY_URL = 'https://dev-tool-curl-proxy.lucky-devtool.workers.dev';
 
 const i18n = {
   zh: {
@@ -12,6 +13,7 @@ const i18n = {
     modeJson: 'JSON 格式化',
     modeSql: 'SQL 格式化',
     modeTimestamp: '时间转换',
+    modeCurl: 'Curl 在线执行',
     modeNotes: '图文笔记',
     copyBtn: '复制内容',
     importBtn: '导入文件',
@@ -71,7 +73,28 @@ const i18n = {
     noteCount: '{count} 篇',
     confirmDeleteNote: '确定删除这篇文章吗？',
     linkPrompt: '请输入链接地址',
-    toastImageFailed: '图片读取失败'
+    toastImageFailed: '图片读取失败',
+    curlTitle: 'Curl 在线执行',
+    curlTip: '在浏览器中将 curl 转为 HTTP 请求执行',
+    curlRun: '执行请求',
+    curlCancel: '停止请求',
+    curlInputLabel: 'Curl 命令',
+    curlRoute: '请求方式',
+    curlRouteDirect: '浏览器直连',
+    curlRouteProxy: '代理转发',
+    curlProxyUrlPlaceholder: '填写已部署的代理地址',
+    curlProxyRequired: '请填写代理地址',
+    curlHelp: '支持常用的 -X、-H、-d / --data、-u 与 --url；命令不会保存到本地。请求直接从当前浏览器发出，受目标站点 CORS 策略限制。',
+    curlResult: '响应结果',
+    curlReady: '等待执行',
+    curlRunning: '请求执行中…',
+    curlStreaming: 'HTTP {status} · 正在接收 {size}',
+    curlSuccess: '完成：HTTP {status}（{duration} ms）',
+    curlFailed: '请求失败（{duration} ms）',
+    curlCancelled: '请求已停止（{duration} ms）',
+    curlInvalid: '无法解析 curl 命令：{message}',
+    curlUnsupported: '以下参数未执行：{flags}',
+    curlEmpty: '请输入 curl 命令'
   },
   en: {
     title: 'Editor-Pro',
@@ -81,6 +104,7 @@ const i18n = {
     modeJson: 'JSON Formatter',
     modeSql: 'SQL Formatter',
     modeTimestamp: 'Time Converter',
+    modeCurl: 'Run Curl',
     modeNotes: 'Visual Notes',
     copyBtn: 'Copy Content',
     importBtn: 'Import File',
@@ -140,7 +164,28 @@ const i18n = {
     noteCount: '{count} notes',
     confirmDeleteNote: 'Delete this article?',
     linkPrompt: 'Enter a link',
-    toastImageFailed: 'Could not read image'
+    toastImageFailed: 'Could not read image',
+    curlTitle: 'Run Curl Online',
+    curlTip: 'Convert curl into a browser HTTP request',
+    curlRun: 'Run Request',
+    curlCancel: 'Stop Request',
+    curlInputLabel: 'Curl command',
+    curlRoute: 'Route',
+    curlRouteDirect: 'Browser direct',
+    curlRouteProxy: 'Proxy',
+    curlProxyUrlPlaceholder: 'Enter deployed proxy URL',
+    curlProxyRequired: 'Enter a proxy URL',
+    curlHelp: 'Supports common -X, -H, -d / --data, -u, and --url options. Commands are not saved locally. Requests originate in this browser and are subject to the target CORS policy.',
+    curlResult: 'Response',
+    curlReady: 'Ready to run',
+    curlRunning: 'Request in progress…',
+    curlStreaming: 'HTTP {status} · Receiving {size}',
+    curlSuccess: 'Done: HTTP {status} ({duration} ms)',
+    curlFailed: 'Request failed ({duration} ms)',
+    curlCancelled: 'Request stopped ({duration} ms)',
+    curlInvalid: 'Could not parse curl command: {message}',
+    curlUnsupported: 'Not executed: {flags}',
+    curlEmpty: 'Enter a curl command'
   }
 };
 
@@ -183,10 +228,12 @@ const state = {
     json: sampleContent.json,
     sql: sampleContent.sql
   },
-  splitRatio: 0.5
+  splitRatio: 0.5,
+  curlCommand: ''
 };
 
 const els = {};
+let activeCurlController = null;
 const notesState = {
   db: null,
   notes: [],
@@ -230,6 +277,13 @@ function cacheElements() {
   els.splitter = document.getElementById('splitter');
   els.formatBtn = document.getElementById('formatBtn');
   els.timestampWorkspace = document.getElementById('timestampWorkspace');
+  els.curlWorkspace = document.getElementById('curlWorkspace');
+  els.curlInput = document.getElementById('curlInput');
+  els.curlProxyUrl = document.getElementById('curlProxyUrl');
+  els.curlProxyUrl.value = getDefaultCurlProxyUrl();
+  els.runCurlBtn = document.getElementById('runCurlBtn');
+  els.curlOutput = document.getElementById('curlOutput');
+  els.curlStatus = document.getElementById('curlStatus');
   els.timestampInput = document.getElementById('timestampInput');
   els.dateTimeInput = document.getElementById('dateTimeInput');
   els.timestampToTimeBtn = document.getElementById('timestampToTimeBtn');
@@ -261,6 +315,16 @@ function bindEvents() {
   els.timestampToTimeBtn.addEventListener('click', convertTimestampToTime);
   els.timeToTimestampBtn.addEventListener('click', convertTimeToTimestamp);
   els.useCurrentTimeBtn.addEventListener('click', useCurrentTime);
+  els.runCurlBtn.addEventListener('click', () => {
+    if (activeCurlController) activeCurlController.abort();
+    else runCurlCommand();
+  });
+  els.curlInput.addEventListener('input', () => {
+    state.curlCommand = els.curlInput.value;
+  });
+  document.querySelectorAll('input[name="curlRoute"]').forEach((input) => {
+    input.addEventListener('change', updateCurlRoute);
+  });
   els.newNoteBtn.addEventListener('click', createNote);
   els.deleteNoteBtn.addEventListener('click', deleteActiveNote);
   els.noteTitle.addEventListener('input', scheduleNoteSave);
@@ -312,11 +376,28 @@ function switchMode(mode) {
 
 function updateWorkspaceMode() {
   const isTimestamp = state.mode === 'timestamp';
+  const isCurl = state.mode === 'curl';
   const isNotes = state.mode === 'notes';
-  els.workspace.hidden = isTimestamp || isNotes;
+  els.workspace.hidden = isTimestamp || isCurl || isNotes;
   els.timestampWorkspace.hidden = !isTimestamp;
+  els.curlWorkspace.hidden = !isCurl;
   els.notesWorkspace.hidden = !isNotes;
-  document.querySelector('.action-group').hidden = isTimestamp || isNotes;
+  document.querySelector('.action-group').hidden = isTimestamp || isCurl || isNotes;
+  if (isCurl) {
+    els.curlInput.value = state.curlCommand;
+    els.curlStatus.textContent = t('curlReady');
+  }
+}
+
+function updateCurlRoute() {
+  const useProxy = document.querySelector('input[name="curlRoute"]:checked')?.value === 'proxy';
+  els.curlProxyUrl.hidden = !useProxy;
+  if (useProxy) els.curlProxyUrl.focus();
+}
+
+function getDefaultCurlProxyUrl() {
+  const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  return localHosts.has(window.location.hostname) ? '/api/curl-proxy' : CLOUDFARE_CURL_PROXY_URL;
 }
 
 function toggleLanguage() {
@@ -1457,6 +1538,248 @@ function sqlTokenClass(tok) {
   return map[tok.type] ?? '';
 }
 
+async function runCurlCommand() {
+  const command = els.curlInput.value.trim();
+  if (!command) {
+    els.curlStatus.textContent = t('curlEmpty');
+    els.curlOutput.textContent = '';
+    return;
+  }
+
+  let request;
+  try {
+    request = parseCurlCommand(command);
+  } catch (error) {
+    els.curlStatus.textContent = t('curlInvalid').replace('{message}', error.message);
+    els.curlOutput.textContent = '';
+    return;
+  }
+
+  const useProxy = document.querySelector('input[name="curlRoute"]:checked')?.value === 'proxy';
+  const proxyUrl = els.curlProxyUrl.value.trim();
+  if (useProxy && !proxyUrl) {
+    els.curlStatus.textContent = t('curlProxyRequired');
+    return;
+  }
+
+  activeCurlController = new AbortController();
+  els.runCurlBtn.textContent = t('curlCancel');
+  els.curlStatus.textContent = t('curlRunning');
+  els.curlOutput.textContent = '';
+  const startedAt = performance.now();
+  try {
+    const response = await fetchCurlRequest(request, useProxy ? proxyUrl : '', activeCurlController.signal);
+    const headers = [...response.headers.entries()];
+    let body = '';
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let lastRenderAt = 0;
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        body += decoder.decode(value, { stream: true });
+        const now = performance.now();
+        if (now - lastRenderAt > 50) {
+          renderCurlResponse(response, headers, body);
+          els.curlStatus.textContent = t('curlStreaming')
+            .replace('{status}', response.status)
+            .replace('{size}', formatByteSize(body.length));
+          lastRenderAt = now;
+        }
+      }
+      body += decoder.decode();
+    } else {
+      body = await response.text();
+    }
+    const duration = Math.round(performance.now() - startedAt);
+    els.curlStatus.textContent = t('curlSuccess')
+      .replace('{status}', response.status)
+      .replace('{duration}', duration);
+    renderCurlResponse(response, headers, body);
+    if (request.unsupported.length) showToast(t('curlUnsupported').replace('{flags}', request.unsupported.join(', ')));
+  } catch (error) {
+    const duration = Math.round(performance.now() - startedAt);
+    const wasCancelled = error.name === 'AbortError';
+    els.curlStatus.textContent = t(wasCancelled ? 'curlCancelled' : 'curlFailed').replace('{duration}', duration);
+    els.curlOutput.textContent = wasCancelled
+      ? 'Request cancelled by user.'
+      : `${error.name}: ${error.message}\n\nThis can happen when the target does not allow browser requests (CORS), the network is unavailable, or the request was blocked.`;
+    if (request.unsupported.length) showToast(t('curlUnsupported').replace('{flags}', request.unsupported.join(', ')));
+  } finally {
+    activeCurlController = null;
+    els.runCurlBtn.textContent = t('curlRun');
+  }
+}
+
+function fetchCurlRequest(request, proxyUrl, signal) {
+  if (!proxyUrl) return fetch(request.url, { ...request.options, signal });
+  return fetch(proxyUrl, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: request.url,
+      method: request.options.method,
+      headers: [...request.options.headers.entries()],
+      body: request.options.body ?? null
+    })
+  });
+}
+
+function renderCurlResponse(response, headers, body) {
+  const contentType = response.headers.get('content-type') || '';
+  const formattedBody = formatResponseBody(body, contentType);
+  const isJson = contentType.includes('json') || /^[\s\r\n]*[\[{]/.test(formattedBody);
+  const headerRows = headers.map(([name, value]) => (
+    `<div><span>${escapeHtml(name)}</span><code>${escapeHtml(value)}</code></div>`
+  )).join('');
+  els.curlOutput.innerHTML = `
+    <div class="curl-response-summary">
+      <span class="curl-status-code ${response.ok ? 'is-success' : 'is-error'}">${response.status}</span>
+      <span>${escapeHtml(response.statusText || (response.ok ? 'OK' : 'Request failed'))}</span>
+      <span class="curl-response-type">${escapeHtml(contentType || 'unknown content type')}</span>
+    </div>
+    <details class="curl-response-headers">
+      <summary>${headers.length} response headers</summary>
+      <div class="curl-header-list">${headerRows || '<span>No readable response headers</span>'}</div>
+    </details>
+    <pre class="curl-response-body ${isJson ? 'is-json' : ''}"><code>${isJson ? highlightJson(formattedBody) : escapeHtml(formattedBody)}</code></pre>
+  `;
+  const bodyNode = els.curlOutput.querySelector('.curl-response-body');
+  bodyNode.scrollTop = bodyNode.scrollHeight;
+}
+
+function highlightJson(text) {
+  return escapeHtml(text).replace(/("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*")(\s*:)?|\b(true|false|null)\b|\b-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?\b/g, (match, string, key, literal) => {
+    if (string) return `<span class="${key ? 'json-highlight-key' : 'json-highlight-string'}">${string}</span>${key || ''}`;
+    if (literal) return `<span class="json-highlight-${literal}">${literal}</span>`;
+    return `<span class="json-highlight-number">${match}</span>`;
+  });
+}
+
+function formatByteSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function parseCurlCommand(command) {
+  const tokens = tokenizeShellCommand(command.replace(/\\\r?\n/g, ' '));
+  if (tokens.shift()?.toLowerCase() !== 'curl') throw new Error('command must start with curl');
+
+  const headers = new Headers();
+  const data = [];
+  const unsupported = [];
+  let method = '';
+  let url = '';
+  const forbiddenHeader = /^(accept-charset|accept-encoding|access-control-request-.*|connection|content-length|cookie|date|dnt|expect|host|keep-alive|origin|permissions-policy|referer|set-cookie|te|trailer|transfer-encoding|upgrade|user-agent|via|proxy-.*|sec-.*|priority)$/i;
+  const takeValue = (index, flag) => {
+    if (!tokens[index + 1]) throw new Error(`${flag} requires a value`);
+    return tokens[++index];
+  };
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === '-X' || token === '--request') {
+      method = takeValue(index, token);
+      index += 1;
+    } else if (token.startsWith('-X') && token.length > 2) {
+      method = token.slice(2);
+    } else if (token === '-H' || token === '--header') {
+      const header = takeValue(index, token);
+      index += 1;
+      const separator = header.indexOf(':');
+      if (separator < 1) {
+        unsupported.push(`header ${header}`);
+        continue;
+      }
+      const name = header.slice(0, separator).trim();
+      if (forbiddenHeader.test(name)) {
+        unsupported.push(`header ${name}`);
+        continue;
+      }
+      headers.append(name, header.slice(separator + 1).trim());
+    } else if (token === '-d' || token === '--data' || token === '--data-raw' || token === '--data-binary' || token === '--data-ascii') {
+      data.push(takeValue(index, token));
+      index += 1;
+    } else if (token === '-u' || token === '--user') {
+      headers.set('Authorization', `Basic ${btoa(takeValue(index, token))}`);
+      index += 1;
+    } else if (token === '-I' || token === '--head') {
+      method = 'HEAD';
+    } else if (token === '--url') {
+      url = takeValue(index, token);
+      index += 1;
+    } else if (token === '-L' || token === '--location' || token === '--compressed' || token === '--silent' || token === '-s') {
+      // Browser fetch already follows redirects and handles compression.
+    } else if (token === '-F' || token === '--form' || token === '--cookie' || token === '-b' || token === '--proxy' || token === '-x' || token === '-k' || token === '--insecure') {
+      unsupported.push(token);
+      if (['-F', '--form', '--cookie', '-b', '--proxy', '-x'].includes(token) && tokens[index + 1]) index += 1;
+    } else if (token.startsWith('-')) {
+      unsupported.push(token);
+    } else if (!url) {
+      url = token;
+    } else {
+      unsupported.push(token);
+    }
+  }
+
+  url = unwrapMarkdownUrl(url);
+  if (!url) throw new Error('URL is required');
+  try {
+    new URL(url);
+  } catch (_) {
+    throw new Error('URL is invalid');
+  }
+  const options = { method: (method || (data.length ? 'POST' : 'GET')).toUpperCase(), headers, credentials: 'same-origin' };
+  if (data.length) options.body = data.join('&');
+  if (options.method === 'GET' || options.method === 'HEAD') delete options.body;
+  return { url, options, unsupported };
+}
+
+function unwrapMarkdownUrl(value) {
+  const match = value.match(/^\[[^\]]*\]\((https?:\/\/[^\s)]+)\)$/i);
+  return match ? match[1] : value;
+}
+
+function tokenizeShellCommand(command) {
+  const tokens = [];
+  let current = '';
+  let quote = null;
+  let escaped = false;
+  for (const char of command) {
+    if (escaped) {
+      current += char;
+      escaped = false;
+    } else if (char === '\\' && quote !== "'") {
+      escaped = true;
+    } else if ((char === "'" || char === '"') && (!quote || quote === char)) {
+      quote = quote ? null : char;
+    } else if (/\s/.test(char) && !quote) {
+      if (current) tokens.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (escaped) current += '\\';
+  if (quote) throw new Error('unterminated quote');
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function formatResponseBody(body, contentType) {
+  if (!body) return '';
+  if (contentType?.includes('json')) {
+    try {
+      return JSON.stringify(JSON.parse(body), null, 2);
+    } catch (_) {
+      // Show the original response if a server sends invalid JSON.
+    }
+  }
+  return body;
+}
+
 async function copyContent() {
   let text = els.editor.value;
   if (state.mode === 'json') {
@@ -1556,7 +1879,8 @@ function applySplitRatio() {
 }
 
 function persistState(statusKey = null) {
-  const payload = JSON.stringify(state);
+  const { curlCommand: _curlCommand, ...savedState } = state;
+  const payload = JSON.stringify(savedState);
   localStorage.setItem(STORAGE_KEY, payload);
   if (statusKey) {
     els.saveStatus.textContent = t(statusKey);

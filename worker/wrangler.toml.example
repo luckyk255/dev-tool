@@ -1,0 +1,9 @@
+name = "dev-tool-curl-proxy"
+main = "src/index.js"
+compatibility_date = "2026-09-15"
+
+[vars]
+# Comma-separated origins that may call this Worker.
+ALLOWED_WEB_ORIGINS = "https://luckyk255.github.io"
+# Comma-separated target API origins. Do not use *.
+TARGET_ORIGIN_ALLOWLIST = "https://baiying-claw-ops-test.baiying.com.cn"

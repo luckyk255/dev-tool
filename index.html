@@ -6,7 +6,7 @@
   <title>Editor-Pro</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown-light.min.css" />
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -42,6 +42,7 @@
           <button class="mode-btn" type="button" data-mode="json" data-i18n="modeJson" role="tab" aria-selected="false">JSON Formatter</button>
           <button class="mode-btn" type="button" data-mode="sql" data-i18n="modeSql" role="tab" aria-selected="false">SQL Formatter</button>
           <button class="mode-btn" type="button" data-mode="timestamp" data-i18n="modeTimestamp" role="tab" aria-selected="false">时间转换</button>
+          <button class="mode-btn" type="button" data-mode="curl" data-i18n="modeCurl" role="tab" aria-selected="false">Curl 在线执行</button>
           <button class="mode-btn" type="button" data-mode="notes" data-i18n="modeNotes" role="tab" aria-selected="false">图文笔记</button>
         </div>
         <div class="action-group">
@@ -158,6 +159,34 @@
           data-i18n-placeholder="noteEditorPlaceholder"
           data-placeholder="粘贴文章或在这里开始写作；可直接粘贴网页图文"
         ></div>
+      </section>
+    </main>
+
+    <main class="curl-workspace" id="curlWorkspace" hidden>
+      <section class="panel curl-panel glass-card">
+        <div class="panel-header">
+          <div>
+            <span data-i18n="curlTitle">Curl 在线执行</span>
+            <span class="panel-tip" data-i18n="curlTip">在浏览器中将 curl 转为 HTTP 请求执行</span>
+          </div>
+          <button class="primary-btn primary-btn--compact" id="runCurlBtn" type="button" data-i18n="curlRun">执行请求</button>
+        </div>
+        <div class="curl-body">
+          <div class="curl-route-control" role="group" aria-label="Request route">
+            <span data-i18n="curlRoute">请求方式</span>
+            <label><input type="radio" name="curlRoute" value="direct" /> <span data-i18n="curlRouteDirect">浏览器直连</span></label>
+            <label><input type="radio" name="curlRoute" value="proxy" checked /> <span data-i18n="curlRouteProxy">代理转发</span></label>
+            <input id="curlProxyUrl" type="url" data-i18n-placeholder="curlProxyUrlPlaceholder" placeholder="https://your-worker.workers.dev" />
+          </div>
+          <label class="curl-label" for="curlInput" data-i18n="curlInputLabel">Curl 命令</label>
+          <textarea id="curlInput" class="curl-input" spellcheck="false" placeholder="curl https://api.example.com/users -H &quot;Accept: application/json&quot;"></textarea>
+          <p class="field-help" data-i18n="curlHelp">支持常用的 -X、-H、-d / --data、-u 与 --url；命令不会保存到本地。请求直接从当前浏览器发出，受目标站点 CORS 策略限制。</p>
+          <div class="curl-result-header">
+            <span data-i18n="curlResult">响应结果</span>
+            <span class="panel-tip" id="curlStatus" aria-live="polite"></span>
+          </div>
+          <div class="curl-output" id="curlOutput" aria-live="polite"></div>
+        </div>
       </section>
     </main>
   </div>
