@@ -322,6 +322,7 @@ function bindEvents() {
   els.curlInput.addEventListener('input', () => {
     state.curlCommand = els.curlInput.value;
   });
+  els.editor.addEventListener('paste', formatPastedJson);
   document.querySelectorAll('input[name="curlRoute"]').forEach((input) => {
     input.addEventListener('change', updateCurlRoute);
   });
@@ -860,6 +861,8 @@ function formatJsonEditor() {
   try {
     const formatted = JSON.stringify(JSON.parse(els.editor.value || '{}'), null, 2);
     els.editor.value = formatted;
+    els.editor.scrollLeft = 0;
+    els.editor.scrollTop = 0;
     state.content.json = formatted;
     renderLineNumbers();
     renderPreview();
@@ -1766,6 +1769,24 @@ function tokenizeShellCommand(command) {
   if (quote) throw new Error('unterminated quote');
   if (current) tokens.push(current);
   return tokens;
+}
+
+function formatPastedJson() {
+  if (state.mode !== 'json') return;
+  window.setTimeout(() => {
+    try {
+      const formatted = JSON.stringify(JSON.parse(els.editor.value), null, 2);
+      els.editor.value = formatted;
+      els.editor.scrollLeft = 0;
+      els.editor.scrollTop = 0;
+      state.content.json = formatted;
+      renderLineNumbers();
+      renderPreview();
+      persistState('autosaveSaved');
+    } catch (_) {
+      // Keep pasted content unchanged so the JSON error preview remains useful.
+    }
+  }, 0);
 }
 
 function formatResponseBody(body, contentType) {
