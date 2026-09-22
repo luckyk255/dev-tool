@@ -13,6 +13,7 @@ const i18n = {
     modeJson: 'JSON 格式化',
     modeSql: 'SQL 格式化',
     modeTimestamp: '时间转换',
+    modeTimer: '番茄钟',
     modeCurl: 'Curl 在线执行',
     modeNotes: '图文笔记',
     copyBtn: '复制内容',
@@ -94,7 +95,22 @@ const i18n = {
     curlCancelled: '请求已停止（{duration} ms）',
     curlInvalid: '无法解析 curl 命令：{message}',
     curlUnsupported: '以下参数未执行：{flags}',
-    curlEmpty: '请输入 curl 命令'
+    curlEmpty: '请输入 curl 命令',
+    githubProfile: 'GitHub 主页',
+    timerTitle: '专注计时器',
+    timerWorkMinutes: '专注时长（分钟）',
+    timerBreakMinutes: '休息时长（分钟）',
+    timerStart: '开始专注',
+    timerPause: '暂停',
+    timerReset: '重置',
+    timerWorkPhase: '专注时间',
+    timerBreakPhase: '休息时间',
+    timerReady: '准备开始专注',
+    timerRunning: '正在{phase}',
+    timerPaused: '计时已暂停',
+    timerCompleteWork: '专注完成，休息一下吧！',
+    timerCompleteBreak: '休息结束，开始下一轮专注吧！',
+    timerHelp: '倒计时结束会发送浏览器通知；首次开始时请允许通知权限。'
   },
   en: {
     title: 'Editor-Pro',
@@ -104,6 +120,7 @@ const i18n = {
     modeJson: 'JSON Formatter',
     modeSql: 'SQL Formatter',
     modeTimestamp: 'Time Converter',
+    modeTimer: 'Focus Timer',
     modeCurl: 'Run Curl',
     modeNotes: 'Visual Notes',
     copyBtn: 'Copy Content',
@@ -185,7 +202,22 @@ const i18n = {
     curlCancelled: 'Request stopped ({duration} ms)',
     curlInvalid: 'Could not parse curl command: {message}',
     curlUnsupported: 'Not executed: {flags}',
-    curlEmpty: 'Enter a curl command'
+    curlEmpty: 'Enter a curl command',
+    githubProfile: 'GitHub Profile',
+    timerTitle: 'Focus Timer',
+    timerWorkMinutes: 'Focus minutes',
+    timerBreakMinutes: 'Break minutes',
+    timerStart: 'Start focus',
+    timerPause: 'Pause',
+    timerReset: 'Reset',
+    timerWorkPhase: 'Focus time',
+    timerBreakPhase: 'Break time',
+    timerReady: 'Ready to focus',
+    timerRunning: '{phase} in progress',
+    timerPaused: 'Timer paused',
+    timerCompleteWork: 'Focus complete. Time for a break!',
+    timerCompleteBreak: 'Break complete. Start your next focus session!',
+    timerHelp: 'You will receive a browser notification when time is up. Allow notifications when starting for the first time.'
   }
 };
 
@@ -229,11 +261,20 @@ const state = {
     sql: sampleContent.sql
   },
   splitRatio: 0.5,
-  curlCommand: ''
+  curlCommand: '',
+  timer: {
+    phase: 'work',
+    workMinutes: 25,
+    breakMinutes: 5,
+    remainingSeconds: 25 * 60,
+    endAt: null,
+    isRunning: false
+  }
 };
 
 const els = {};
 let activeCurlController = null;
+let timerInterval = null;
 const notesState = {
   db: null,
   notes: [],
@@ -277,6 +318,14 @@ function cacheElements() {
   els.splitter = document.getElementById('splitter');
   els.formatBtn = document.getElementById('formatBtn');
   els.timestampWorkspace = document.getElementById('timestampWorkspace');
+  els.timerWorkspace = document.getElementById('timerWorkspace');
+  els.timerDisplay = document.getElementById('timerDisplay');
+  els.timerStatus = document.getElementById('timerStatus');
+  els.timerPhase = document.getElementById('timerPhase');
+  els.timerStartBtn = document.getElementById('timerStartBtn');
+  els.timerResetBtn = document.getElementById('timerResetBtn');
+  els.timerWorkMinutes = document.getElementById('timerWorkMinutes');
+  els.timerBreakMinutes = document.getElementById('timerBreakMinutes');
   els.curlWorkspace = document.getElementById('curlWorkspace');
   els.curlInput = document.getElementById('curlInput');
   els.curlProxyUrl = document.getElementById('curlProxyUrl');
@@ -315,6 +364,10 @@ function bindEvents() {
   els.timestampToTimeBtn.addEventListener('click', convertTimestampToTime);
   els.timeToTimestampBtn.addEventListener('click', convertTimeToTimestamp);
   els.useCurrentTimeBtn.addEventListener('click', useCurrentTime);
+  els.timerStartBtn.addEventListener('click', toggleTimer);
+  els.timerResetBtn.addEventListener('click', resetTimer);
+  els.timerWorkMinutes.addEventListener('change', updateTimerDuration);
+  els.timerBreakMinutes.addEventListener('change', updateTimerDuration);
   els.runCurlBtn.addEventListener('click', () => {
     if (activeCurlController) activeCurlController.abort();
     else runCurlCommand();
@@ -377,13 +430,16 @@ function switchMode(mode) {
 
 function updateWorkspaceMode() {
   const isTimestamp = state.mode === 'timestamp';
+  const isTimer = state.mode === 'timer';
   const isCurl = state.mode === 'curl';
   const isNotes = state.mode === 'notes';
-  els.workspace.hidden = isTimestamp || isCurl || isNotes;
+  els.workspace.hidden = isTimestamp || isTimer || isCurl || isNotes;
   els.timestampWorkspace.hidden = !isTimestamp;
+  els.timerWorkspace.hidden = !isTimer;
   els.curlWorkspace.hidden = !isCurl;
   els.notesWorkspace.hidden = !isNotes;
-  document.querySelector('.action-group').hidden = isTimestamp || isCurl || isNotes;
+  document.querySelector('.action-group').hidden = isTimestamp || isTimer || isCurl || isNotes;
+  if (isTimer) renderTimer();
   if (isCurl) {
     els.curlInput.value = state.curlCommand;
     els.curlStatus.textContent = t('curlReady');
@@ -434,6 +490,7 @@ function applyLanguage() {
   updatePlaceholders();
   updateJsonControls();
   renderNotesList();
+  renderTimer();
 }
 
 function applyTheme() {
@@ -465,6 +522,110 @@ function updateHints() {
 
 function updateJsonControls() {
   els.formatBtn.hidden = state.mode !== 'json';
+}
+
+function timerPhaseLabel() {
+  return t(state.timer.phase === 'work' ? 'timerWorkPhase' : 'timerBreakPhase');
+}
+
+function timerDurationSeconds() {
+  return state.timer.phase === 'work' ? state.timer.workMinutes * 60 : state.timer.breakMinutes * 60;
+}
+
+function renderTimer() {
+  const seconds = Math.max(0, state.timer.remainingSeconds);
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  els.timerDisplay.innerHTML = `<span>${String(minutes).padStart(2, '0')}</span><i aria-hidden="true">·</i><span>${String(remainder).padStart(2, '0')}</span>`;
+  els.timerPhase.textContent = timerPhaseLabel();
+  els.timerWorkMinutes.value = state.timer.workMinutes;
+  els.timerBreakMinutes.value = state.timer.breakMinutes;
+  els.timerStartBtn.textContent = state.timer.isRunning ? t('timerPause') : t('timerStart');
+  els.timerStatus.textContent = state.timer.isRunning
+    ? t('timerRunning').replace('{phase}', timerPhaseLabel().toLowerCase())
+    : state.timer.remainingSeconds === timerDurationSeconds() ? t('timerReady') : t('timerPaused');
+}
+
+function updateTimerDuration(event) {
+  const key = event.target === els.timerWorkMinutes ? 'workMinutes' : 'breakMinutes';
+  const maximum = key === 'workMinutes' ? 180 : 60;
+  const value = clamp(Number.parseInt(event.target.value, 10) || 1, 1, maximum);
+  state.timer[key] = value;
+  resetTimer();
+}
+
+function toggleTimer() {
+  if (state.timer.isRunning) {
+    pauseTimer();
+    return;
+  }
+  requestTimerNotificationPermission();
+  state.timer.isRunning = true;
+  state.timer.endAt = Date.now() + state.timer.remainingSeconds * 1000;
+  startTimerInterval();
+  persistState();
+  renderTimer();
+}
+
+function pauseTimer() {
+  refreshTimer();
+  state.timer.isRunning = false;
+  state.timer.endAt = null;
+  stopTimerInterval();
+  persistState();
+  renderTimer();
+}
+
+function resetTimer() {
+  state.timer.isRunning = false;
+  state.timer.endAt = null;
+  state.timer.remainingSeconds = timerDurationSeconds();
+  stopTimerInterval();
+  persistState();
+  renderTimer();
+}
+
+function startTimerInterval() {
+  stopTimerInterval();
+  timerInterval = window.setInterval(refreshTimer, 250);
+  refreshTimer();
+}
+
+function stopTimerInterval() {
+  window.clearInterval(timerInterval);
+  timerInterval = null;
+}
+
+function refreshTimer() {
+  if (!state.timer.isRunning || !state.timer.endAt) return;
+  state.timer.remainingSeconds = Math.max(0, Math.ceil((state.timer.endAt - Date.now()) / 1000));
+  if (state.timer.remainingSeconds === 0) {
+    completeTimer();
+    return;
+  }
+  renderTimer();
+}
+
+function completeTimer() {
+  const completedWork = state.timer.phase === 'work';
+  state.timer.isRunning = false;
+  state.timer.endAt = null;
+  state.timer.phase = completedWork ? 'break' : 'work';
+  state.timer.remainingSeconds = timerDurationSeconds();
+  stopTimerInterval();
+  persistState();
+  renderTimer();
+  const message = t(completedWork ? 'timerCompleteWork' : 'timerCompleteBreak');
+  showToast(message);
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(t('timerTitle'), { body: message });
+  }
+}
+
+function requestTimerNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
 }
 
 async function initializeNotes() {
@@ -1924,6 +2085,15 @@ function restoreState() {
     if (parsed?.content?.markdown) state.content.markdown = parsed.content.markdown;
     if (parsed?.content?.json) state.content.json = parsed.content.json;
     if (parsed?.content?.sql) state.content.sql = parsed.content.sql;
+    if (parsed?.timer) {
+      state.timer.phase = parsed.timer.phase === 'break' ? 'break' : 'work';
+      state.timer.workMinutes = clamp(Number(parsed.timer.workMinutes) || 25, 1, 180);
+      state.timer.breakMinutes = clamp(Number(parsed.timer.breakMinutes) || 5, 1, 60);
+      state.timer.remainingSeconds = clamp(Number(parsed.timer.remainingSeconds) || state.timer.workMinutes * 60, 0, 180 * 60);
+      state.timer.endAt = Number(parsed.timer.endAt) || null;
+      state.timer.isRunning = Boolean(parsed.timer.isRunning && state.timer.endAt);
+      if (state.timer.isRunning) startTimerInterval();
+    }
   } catch (error) {
     console.warn('Restore state failed:', error);
   }

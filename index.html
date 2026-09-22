@@ -32,6 +32,7 @@
       <div class="toolbar-top-row">
         <div class="toolbar-brand">Editor-Pro</div>
         <div class="header-actions">
+          <a class="github-link" href="https://github.com/luckyk255" target="_blank" rel="noreferrer" data-i18n="githubProfile" aria-label="Open luckyk255's GitHub profile">GitHub 主页</a>
           <button class="ghost-btn ghost-btn--compact" id="themeToggle" type="button" data-i18n="themeLight">浅色</button>
           <button class="ghost-btn ghost-btn--compact" id="langToggle" type="button">EN</button>
         </div>
@@ -42,6 +43,7 @@
           <button class="mode-btn" type="button" data-mode="json" data-i18n="modeJson" role="tab" aria-selected="false">JSON Formatter</button>
           <button class="mode-btn" type="button" data-mode="sql" data-i18n="modeSql" role="tab" aria-selected="false">SQL Formatter</button>
           <button class="mode-btn" type="button" data-mode="timestamp" data-i18n="modeTimestamp" role="tab" aria-selected="false">时间转换</button>
+          <button class="mode-btn" type="button" data-mode="timer" data-i18n="modeTimer" role="tab" aria-selected="false">番茄钟</button>
           <button class="mode-btn" type="button" data-mode="curl" data-i18n="modeCurl" role="tab" aria-selected="false">Curl 在线执行</button>
           <button class="mode-btn" type="button" data-mode="notes" data-i18n="modeNotes" role="tab" aria-selected="false">图文笔记</button>
         </div>
@@ -119,6 +121,36 @@
               <div><span data-i18n="millisecondsTimestamp">毫秒级时间戳</span><code id="millisecondsTimestamp">-</code></div>
             </div>
           </div>
+        </div>
+      </section>
+    </main>
+
+    <main class="timer-workspace" id="timerWorkspace" hidden>
+      <section class="panel timer-panel glass-card">
+        <div class="panel-header">
+          <div>
+            <span data-i18n="timerTitle">专注计时器</span>
+            <span class="panel-tip" id="timerStatus" aria-live="polite">准备开始专注</span>
+          </div>
+          <span class="panel-badge" id="timerPhase">专注时间</span>
+        </div>
+        <div class="timer-body">
+          <div class="timer-display" id="timerDisplay" aria-live="off"><span>25</span><i aria-hidden="true">·</i><span>00</span></div>
+          <div class="timer-controls">
+            <button class="primary-btn" id="timerStartBtn" type="button" data-i18n="timerStart">开始专注</button>
+            <button class="ghost-btn" id="timerResetBtn" type="button" data-i18n="timerReset">重置</button>
+          </div>
+          <div class="timer-settings">
+            <label>
+              <span data-i18n="timerWorkMinutes">专注时长（分钟）</span>
+              <input id="timerWorkMinutes" type="number" min="1" max="180" value="25" inputmode="numeric" />
+            </label>
+            <label>
+              <span data-i18n="timerBreakMinutes">休息时长（分钟）</span>
+              <input id="timerBreakMinutes" type="number" min="1" max="60" value="5" inputmode="numeric" />
+            </label>
+          </div>
+          <p class="field-help" data-i18n="timerHelp">倒计时结束会发送浏览器通知；首次开始时请允许通知权限。</p>
         </div>
       </section>
     </main>
