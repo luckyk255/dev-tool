@@ -204,18 +204,18 @@
           <button class="primary-btn primary-btn--compact" id="runCurlBtn" type="button" data-i18n="curlRun">执行请求</button>
         </div>
         <div class="curl-body">
-          <div class="curl-route-control" role="group" aria-label="Request route">
-            <span data-i18n="curlRoute">请求方式</span>
-            <label><input type="radio" name="curlRoute" value="direct" /> <span data-i18n="curlRouteDirect">浏览器直连</span></label>
-            <label><input type="radio" name="curlRoute" value="proxy" checked /> <span data-i18n="curlRouteProxy">代理转发</span></label>
-            <input id="curlProxyUrl" type="url" data-i18n-placeholder="curlProxyUrlPlaceholder" placeholder="https://your-worker.workers.dev" />
+          <div class="curl-command-heading">
+            <label class="curl-label" for="curlInput" data-i18n="curlInputLabel">Curl 命令</label>
+            <button class="ghost-btn ghost-btn--compact" id="copyCurlCommandBtn" type="button" data-i18n="curlCopyCommand">复制请求</button>
           </div>
-          <label class="curl-label" for="curlInput" data-i18n="curlInputLabel">Curl 命令</label>
           <textarea id="curlInput" class="curl-input" spellcheck="false" placeholder="curl https://api.example.com/users -H &quot;Accept: application/json&quot;"></textarea>
           <p class="field-help" data-i18n="curlHelp">支持常用的 -X、-H、-d / --data、-u 与 --url；命令不会保存到本地。请求直接从当前浏览器发出，受目标站点 CORS 策略限制。</p>
           <div class="curl-result-header">
             <span data-i18n="curlResult">响应结果</span>
-            <span class="panel-tip" id="curlStatus" aria-live="polite"></span>
+            <div class="curl-result-actions">
+              <span class="panel-tip" id="curlStatus" aria-live="polite"></span>
+              <button class="ghost-btn ghost-btn--compact" id="copyCurlResponseBtn" type="button" data-i18n="curlCopyResponse">复制响应</button>
+            </div>
           </div>
           <div class="curl-output" id="curlOutput" aria-live="polite"></div>
         </div>

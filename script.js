@@ -2,7 +2,6 @@ const STORAGE_KEY = 'editor-pro';
 const NOTES_DB_NAME = 'editor-pro-notes';
 const NOTES_STORE_NAME = 'notes';
 const EDITOR_MODES = new Set(['markdown', 'json', 'sql']);
-const CLOUDFARE_CURL_PROXY_URL = 'https://dev-tool-curl-proxy.lucky-devtool.workers.dev';
 
 const i18n = {
   zh: {
@@ -80,11 +79,8 @@ const i18n = {
     curlRun: '执行请求',
     curlCancel: '停止请求',
     curlInputLabel: 'Curl 命令',
-    curlRoute: '请求方式',
-    curlRouteDirect: '浏览器直连',
-    curlRouteProxy: '代理转发',
-    curlProxyUrlPlaceholder: '填写已部署的代理地址',
-    curlProxyRequired: '请填写代理地址',
+    curlCopyCommand: '复制请求',
+    curlCopyResponse: '复制响应',
     curlHelp: '支持常用的 -X、-H、-d / --data、-u 与 --url；命令不会保存到本地。请求直接从当前浏览器发出，受目标站点 CORS 策略限制。',
     curlResult: '响应结果',
     curlReady: '等待执行',
@@ -187,11 +183,8 @@ const i18n = {
     curlRun: 'Run Request',
     curlCancel: 'Stop Request',
     curlInputLabel: 'Curl command',
-    curlRoute: 'Route',
-    curlRouteDirect: 'Browser direct',
-    curlRouteProxy: 'Proxy',
-    curlProxyUrlPlaceholder: 'Enter deployed proxy URL',
-    curlProxyRequired: 'Enter a proxy URL',
+    curlCopyCommand: 'Copy Request',
+    curlCopyResponse: 'Copy Response',
     curlHelp: 'Supports common -X, -H, -d / --data, -u, and --url options. Commands are not saved locally. Requests originate in this browser and are subject to the target CORS policy.',
     curlResult: 'Response',
     curlReady: 'Ready to run',
@@ -274,6 +267,7 @@ const state = {
 
 const els = {};
 let activeCurlController = null;
+let curlResponseText = '';
 let timerInterval = null;
 const notesState = {
   db: null,
@@ -328,8 +322,8 @@ function cacheElements() {
   els.timerBreakMinutes = document.getElementById('timerBreakMinutes');
   els.curlWorkspace = document.getElementById('curlWorkspace');
   els.curlInput = document.getElementById('curlInput');
-  els.curlProxyUrl = document.getElementById('curlProxyUrl');
-  els.curlProxyUrl.value = getDefaultCurlProxyUrl();
+  els.copyCurlCommandBtn = document.getElementById('copyCurlCommandBtn');
+  els.copyCurlResponseBtn = document.getElementById('copyCurlResponseBtn');
   els.runCurlBtn = document.getElementById('runCurlBtn');
   els.curlOutput = document.getElementById('curlOutput');
   els.curlStatus = document.getElementById('curlStatus');
@@ -375,10 +369,9 @@ function bindEvents() {
   els.curlInput.addEventListener('input', () => {
     state.curlCommand = els.curlInput.value;
   });
+  els.copyCurlCommandBtn.addEventListener('click', () => copyCurlText(els.curlInput.value));
+  els.copyCurlResponseBtn.addEventListener('click', () => copyCurlText(curlResponseText));
   els.editor.addEventListener('paste', formatPastedJson);
-  document.querySelectorAll('input[name="curlRoute"]').forEach((input) => {
-    input.addEventListener('change', updateCurlRoute);
-  });
   els.newNoteBtn.addEventListener('click', createNote);
   els.deleteNoteBtn.addEventListener('click', deleteActiveNote);
   els.noteTitle.addEventListener('input', scheduleNoteSave);
@@ -444,17 +437,6 @@ function updateWorkspaceMode() {
     els.curlInput.value = state.curlCommand;
     els.curlStatus.textContent = t('curlReady');
   }
-}
-
-function updateCurlRoute() {
-  const useProxy = document.querySelector('input[name="curlRoute"]:checked')?.value === 'proxy';
-  els.curlProxyUrl.hidden = !useProxy;
-  if (useProxy) els.curlProxyUrl.focus();
-}
-
-function getDefaultCurlProxyUrl() {
-  const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
-  return localHosts.has(window.location.hostname) ? '/api/curl-proxy' : CLOUDFARE_CURL_PROXY_URL;
 }
 
 function toggleLanguage() {
@@ -1719,20 +1701,14 @@ async function runCurlCommand() {
     return;
   }
 
-  const useProxy = document.querySelector('input[name="curlRoute"]:checked')?.value === 'proxy';
-  const proxyUrl = els.curlProxyUrl.value.trim();
-  if (useProxy && !proxyUrl) {
-    els.curlStatus.textContent = t('curlProxyRequired');
-    return;
-  }
-
   activeCurlController = new AbortController();
   els.runCurlBtn.textContent = t('curlCancel');
   els.curlStatus.textContent = t('curlRunning');
   els.curlOutput.textContent = '';
+  curlResponseText = '';
   const startedAt = performance.now();
   try {
-    const response = await fetchCurlRequest(request, useProxy ? proxyUrl : '', activeCurlController.signal);
+    const response = await fetch(request.url, { ...request.options, signal: activeCurlController.signal });
     const headers = [...response.headers.entries()];
     let body = '';
     const reader = response.body?.getReader();
@@ -1776,24 +1752,10 @@ async function runCurlCommand() {
   }
 }
 
-function fetchCurlRequest(request, proxyUrl, signal) {
-  if (!proxyUrl) return fetch(request.url, { ...request.options, signal });
-  return fetch(proxyUrl, {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url: request.url,
-      method: request.options.method,
-      headers: [...request.options.headers.entries()],
-      body: request.options.body ?? null
-    })
-  });
-}
-
 function renderCurlResponse(response, headers, body) {
   const contentType = response.headers.get('content-type') || '';
   const formattedBody = formatResponseBody(body, contentType);
+  curlResponseText = formattedBody;
   const isJson = contentType.includes('json') || /^[\s\r\n]*[\[{]/.test(formattedBody);
   const headerRows = headers.map(([name, value]) => (
     `<div><span>${escapeHtml(name)}</span><code>${escapeHtml(value)}</code></div>`
@@ -1930,6 +1892,16 @@ function tokenizeShellCommand(command) {
   if (quote) throw new Error('unterminated quote');
   if (current) tokens.push(current);
   return tokens;
+}
+
+async function copyCurlText(text) {
+  if (!text) return;
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast(t('toastCopied'));
+  } catch (_) {
+    showToast(t('toastCopyFailed'));
+  }
 }
 
 function formatPastedJson() {
